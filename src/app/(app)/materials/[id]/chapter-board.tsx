@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   addChapterAction,
   generateAllScriptsAction,
+  generateAllSlidesAction,
   runConsistencyCheckAction,
 } from "../actions";
 import type { ConsistencyIssue } from "@/lib/anthropic/consistency";
@@ -23,6 +24,7 @@ export function ChapterBoard({
   const [isPending, startTransition] = useTransition();
   const [checking, setChecking] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingAllSlides, setGeneratingAllSlides] = useState(false);
   const [issues, setIssues] = useState<ConsistencyIssue[] | null>(null);
 
   function handleAddChapter() {
@@ -63,6 +65,17 @@ export function ChapterBoard({
       .finally(() => setGeneratingAll(false));
   }
 
+  function handleGenerateAllSlides() {
+    setGeneratingAllSlides(true);
+    generateAllSlidesAction(materialId)
+      .then(() => {
+        toast.success("全章のスライド画像を生成しました。");
+        router.refresh();
+      })
+      .catch(() => toast.error("スライド画像の一括生成に失敗しました。"))
+      .finally(() => setGeneratingAllSlides(false));
+  }
+
   const issueMap = new Map((issues ?? []).map((i) => [i.order_index, i.issue]));
   const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimated_minutes ?? 0), 0);
 
@@ -83,6 +96,14 @@ export function ChapterBoard({
             disabled={generatingAll || chapters.length === 0}
           >
             {generatingAll ? "台本を一括生成中…" : "全章の台本を生成"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateAllSlides}
+            disabled={generatingAllSlides || chapters.length === 0}
+          >
+            {generatingAllSlides ? "スライドを一括生成中…" : "全章のスライドを生成"}
           </Button>
           <Button variant="outline" size="sm" onClick={handleAddChapter} disabled={isPending}>
             章を追加

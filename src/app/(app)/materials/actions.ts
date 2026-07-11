@@ -7,6 +7,7 @@ import { generateOutline } from "@/lib/anthropic/outline";
 import { regenerateChapter } from "@/lib/anthropic/chapter";
 import { checkConsistency, type ConsistencyIssue } from "@/lib/anthropic/consistency";
 import { generateScript, SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
+import { generateSlideImage } from "@/lib/gemini/slide";
 import type { MaterialLevel, MaterialTone } from "@/lib/types";
 import type { CreateMaterialState } from "./types";
 
@@ -324,6 +325,123 @@ export async function generateAllScriptsAction(materialId: string) {
   }
 
   await supabase.from("materials").update({ status: "scripts_ready" }).eq("id", materialId);
+
+  revalidatePath(`/materials/${materialId}`);
+}
+
+async function generateAndSaveSlide(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  material: { id: string; theme: string; tone: MaterialTone },
+  chapter: { id: string; title: string; summary: string },
+) {
+  const { data: existingSlide } = await supabase
+    .from("slides")
+    .select("id, retry_count")
+    .eq("chapter_id", chapter.id)
+    .maybeSingle();
+
+  try {
+    if (existingSlide) {
+      await supabase.from("slides").update({ status: "generating" }).eq("id", existingSlide.id);
+    } else {
+      await supabase
+        .from("slides")
+        .insert({ chapter_id: chapter.id, status: "generating" });
+    }
+
+    const { data, mimeType, attempts } = await generateSlideImage({
+      theme: material.theme,
+      chapterTitle: chapter.title,
+      chapterSummary: chapter.summary,
+      tone: material.tone,
+    });
+
+    const extension = mimeType.includes("png") ? "png" : "jpg";
+    const path = `${userId}/${chapter.id}.${extension}`;
+    const buffer = Buffer.from(data, "base64");
+
+    const { error: uploadError } = await supabase.storage
+      .from("slides")
+      .upload(path, buffer, { contentType: mimeType, upsert: true });
+    if (uploadError) throw uploadError;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("slides").getPublicUrl(path);
+    // 画像を上書きしてもURLが変わらないため、ブラウザキャッシュを避けるバスターを付与する
+    const imageUrl = `${publicUrl}?v=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from("slides")
+      .update({
+        image_url: imageUrl,
+        status: "ready",
+        retry_count: attempts - 1,
+        generated_at: new Date().toISOString(),
+      })
+      .eq("chapter_id", chapter.id);
+    if (updateError) throw updateError;
+
+    await supabase.from("generation_logs").insert({
+      material_id: material.id,
+      type: "slide",
+      status: "success",
+    });
+  } catch (err) {
+    await supabase
+      .from("slides")
+      .update({ status: "failed" })
+      .eq("chapter_id", chapter.id);
+    await supabase.from("generation_logs").insert({
+      material_id: material.id,
+      type: "slide",
+      status: "error",
+      error_message: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+}
+
+export async function generateSlideAction(materialId: string, chapterId: string) {
+  const { supabase, material } = await requireOwnedMaterial(materialId);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("ログインが必要です。");
+
+  const { data: chapter } = await supabase
+    .from("chapters")
+    .select("id, title, summary")
+    .eq("id", chapterId)
+    .single();
+  if (!chapter) throw new Error("章が見つかりません。");
+
+  await generateAndSaveSlide(supabase, user.id, material, chapter);
+
+  revalidatePath(`/materials/${materialId}`);
+}
+
+export async function generateAllSlidesAction(materialId: string) {
+  const { supabase, material } = await requireOwnedMaterial(materialId);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("ログインが必要です。");
+
+  const { data: chapters } = await supabase
+    .from("chapters")
+    .select("id, title, summary")
+    .eq("material_id", materialId)
+    .order("order_index");
+
+  if (!chapters || chapters.length === 0) return;
+
+  for (const chapter of chapters) {
+    await generateAndSaveSlide(supabase, user.id, material, chapter);
+  }
+
+  await supabase.from("materials").update({ status: "slides_ready" }).eq("id", materialId);
 
   revalidatePath(`/materials/${materialId}`);
 }

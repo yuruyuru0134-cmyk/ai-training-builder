@@ -35,6 +35,21 @@ export default async function MaterialDetailPage({
     .eq("material_id", id)
     .order("order_index");
 
+  const chapterIds = (chapters ?? []).map((c) => c.id);
+  const { data: slides } = chapterIds.length
+    ? await supabase
+        .from("slides")
+        .select("chapter_id, image_url, status")
+        .in("chapter_id", chapterIds)
+    : { data: [] };
+
+  const slideByChapter = new Map((slides ?? []).map((s) => [s.chapter_id, s]));
+  const chaptersWithSlides = (chapters ?? []).map((c) => ({
+    ...c,
+    slideUrl: slideByChapter.get(c.id)?.image_url ?? null,
+    slideStatus: slideByChapter.get(c.id)?.status ?? null,
+  }));
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -47,7 +62,7 @@ export default async function MaterialDetailPage({
         </div>
       </div>
 
-      <ChapterBoard materialId={material.id} chapters={chapters ?? []} />
+      <ChapterBoard materialId={material.id} chapters={chaptersWithSlides} />
     </div>
   );
 }

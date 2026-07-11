@@ -13,6 +13,7 @@ import { SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import {
   deleteChapterAction,
   generateScriptAction,
+  generateSlideAction,
   moveChapterAction,
   regenerateChapterAction,
   updateChapterAction,
@@ -27,6 +28,8 @@ export type Chapter = {
   script: string;
   char_count: number;
   status: string;
+  slideUrl: string | null;
+  slideStatus: string | null;
 };
 
 export function ChapterCard({
@@ -45,6 +48,7 @@ export function ChapterCard({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [isGeneratingSlide, setIsGeneratingSlide] = useState(false);
   const [title, setTitle] = useState(chapter.title);
   const [summary, setSummary] = useState(chapter.summary);
   const [estimatedMinutes, setEstimatedMinutes] = useState(
@@ -120,6 +124,17 @@ export function ChapterCard({
       })
       .catch(() => toast.error("台本の生成に失敗しました。"))
       .finally(() => setIsGeneratingScript(false));
+  }
+
+  function handleGenerateSlide() {
+    setIsGeneratingSlide(true);
+    generateSlideAction(materialId, chapter.id)
+      .then(() => {
+        toast.success("スライド画像を生成しました。");
+        router.refresh();
+      })
+      .catch(() => toast.error("スライド画像の生成に失敗しました。"))
+      .finally(() => setIsGeneratingSlide(false));
   }
 
   return (
@@ -238,6 +253,36 @@ export function ChapterCard({
               : script
                 ? "台本をAIで再生成"
                 : "台本を生成"}
+          </Button>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-1.5">
+          <Label>スライド画像</Label>
+          {chapter.slideUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={chapter.slideUrl}
+              alt={`第${chapter.order_index + 1}章のスライド画像`}
+              className="aspect-video w-full rounded-md border border-border object-cover"
+            />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-xs text-muted-foreground">
+              まだスライド画像がありません
+            </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleGenerateSlide}
+            disabled={isGeneratingSlide}
+          >
+            {isGeneratingSlide
+              ? "画像を生成中…"
+              : chapter.slideUrl
+                ? "スライド画像をAIで再生成"
+                : "スライド画像を生成"}
           </Button>
         </div>
       </CardContent>
