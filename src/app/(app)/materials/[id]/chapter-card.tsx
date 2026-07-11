@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import {
   deleteChapterAction,
+  generateScriptAction,
   moveChapterAction,
   regenerateChapterAction,
   updateChapterAction,
@@ -41,16 +44,21 @@ export function ChapterCard({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [title, setTitle] = useState(chapter.title);
   const [summary, setSummary] = useState(chapter.summary);
   const [estimatedMinutes, setEstimatedMinutes] = useState(
     String(chapter.estimated_minutes ?? ""),
   );
+  const [script, setScript] = useState(chapter.script);
 
   const dirty =
     title !== chapter.title ||
     summary !== chapter.summary ||
-    estimatedMinutes !== String(chapter.estimated_minutes ?? "");
+    estimatedMinutes !== String(chapter.estimated_minutes ?? "") ||
+    script !== chapter.script;
+
+  const scriptOverLimit = script.length > SCRIPT_MAX_CHARS;
 
   function handleSave() {
     startTransition(async () => {
@@ -59,6 +67,7 @@ export function ChapterCard({
           title,
           summary,
           estimated_minutes: Number(estimatedMinutes) || 0,
+          script,
         });
         toast.success("保存しました。");
         router.refresh();
@@ -100,6 +109,17 @@ export function ChapterCard({
         toast.error("並び替えに失敗しました。");
       }
     });
+  }
+
+  function handleGenerateScript() {
+    setIsGeneratingScript(true);
+    generateScriptAction(materialId, chapter.id)
+      .then(() => {
+        toast.success("台本を生成しました。");
+        router.refresh();
+      })
+      .catch(() => toast.error("台本の生成に失敗しました。"))
+      .finally(() => setIsGeneratingScript(false));
   }
 
   return (
@@ -170,12 +190,7 @@ export function ChapterCard({
           <Button size="sm" onClick={handleSave} disabled={!dirty || isPending}>
             保存
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleRegenerate}
-            disabled={isPending}
-          >
+          <Button size="sm" variant="outline" onClick={handleRegenerate} disabled={isPending}>
             AIで再生成
           </Button>
           <Button
@@ -186,6 +201,43 @@ export function ChapterCard({
             disabled={isPending}
           >
             削除
+          </Button>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor={`script-${chapter.id}`}>台本（読み上げ用・です・ます調）</Label>
+            <span
+              className={
+                scriptOverLimit
+                  ? "text-xs font-medium text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {script.length} / {SCRIPT_MAX_CHARS}字
+            </span>
+          </div>
+          <Textarea
+            id={`script-${chapter.id}`}
+            value={script}
+            onChange={(e) => setScript(e.target.value)}
+            rows={6}
+            placeholder="「台本を生成」をクリックすると、AIがこの章の読み上げ用台本を作成します。"
+            className={scriptOverLimit ? "border-destructive" : undefined}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleGenerateScript}
+            disabled={isGeneratingScript}
+          >
+            {isGeneratingScript
+              ? "台本を生成中…"
+              : script
+                ? "台本をAIで再生成"
+                : "台本を生成"}
           </Button>
         </div>
       </CardContent>

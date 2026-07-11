@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateOutline } from "@/lib/anthropic/outline";
 import { regenerateChapter } from "@/lib/anthropic/chapter";
 import { checkConsistency, type ConsistencyIssue } from "@/lib/anthropic/consistency";
+import { generateScript, SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import type { MaterialLevel, MaterialTone } from "@/lib/types";
 import type { CreateMaterialState } from "./types";
 
@@ -97,7 +98,7 @@ async function requireOwnedMaterial(materialId: string) {
   const supabase = await createClient();
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, level")
+    .select("id, theme, level, tone")
     .eq("id", materialId)
     .single();
 
@@ -163,7 +164,7 @@ export async function regenerateChapterAction(materialId: string, chapterId: str
 export async function updateChapterAction(
   materialId: string,
   chapterId: string,
-  data: { title: string; summary: string; estimated_minutes: number },
+  data: { title: string; summary: string; estimated_minutes: number; script: string },
 ) {
   const supabase = await createClient();
   const { error } = await supabase
@@ -172,6 +173,8 @@ export async function updateChapterAction(
       title: data.title,
       summary: data.summary,
       estimated_minutes: data.estimated_minutes,
+      script: data.script,
+      char_count: data.script.length,
       status: "ok",
     })
     .eq("id", chapterId);
@@ -245,6 +248,82 @@ export async function moveChapterAction(
     .from("chapters")
     .update({ order_index: target.order_index })
     .eq("id", current.id);
+
+  revalidatePath(`/materials/${materialId}`);
+}
+
+async function generateAndSaveScript(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  material: { id: string; theme: string; level: MaterialLevel; tone: MaterialTone },
+  chapter: { id: string; title: string; summary: string; estimated_minutes: number | null },
+) {
+  try {
+    const { script, truncated } = await generateScript({
+      theme: material.theme,
+      level: material.level,
+      tone: material.tone,
+      chapterTitle: chapter.title,
+      chapterSummary: chapter.summary,
+      estimatedMinutes: chapter.estimated_minutes,
+    });
+
+    const { error } = await supabase
+      .from("chapters")
+      .update({ script, char_count: script.length, status: "ok" })
+      .eq("id", chapter.id);
+    if (error) throw error;
+
+    await supabase.from("generation_logs").insert({
+      material_id: material.id,
+      type: "script",
+      status: "success",
+      error_message: truncated
+        ? `${SCRIPT_MAX_CHARS}字を超えたため末尾を切り詰めました`
+        : null,
+    });
+  } catch (err) {
+    await supabase.from("generation_logs").insert({
+      material_id: material.id,
+      type: "script",
+      status: "error",
+      error_message: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+}
+
+export async function generateScriptAction(materialId: string, chapterId: string) {
+  const { supabase, material } = await requireOwnedMaterial(materialId);
+
+  const { data: chapter } = await supabase
+    .from("chapters")
+    .select("id, title, summary, estimated_minutes")
+    .eq("id", chapterId)
+    .single();
+
+  if (!chapter) throw new Error("章が見つかりません。");
+
+  await generateAndSaveScript(supabase, material, chapter);
+
+  revalidatePath(`/materials/${materialId}`);
+}
+
+export async function generateAllScriptsAction(materialId: string) {
+  const { supabase, material } = await requireOwnedMaterial(materialId);
+
+  const { data: chapters } = await supabase
+    .from("chapters")
+    .select("id, title, summary, estimated_minutes")
+    .eq("material_id", materialId)
+    .order("order_index");
+
+  if (!chapters || chapters.length === 0) return;
+
+  for (const chapter of chapters) {
+    await generateAndSaveScript(supabase, material, chapter);
+  }
+
+  await supabase.from("materials").update({ status: "scripts_ready" }).eq("id", materialId);
 
   revalidatePath(`/materials/${materialId}`);
 }

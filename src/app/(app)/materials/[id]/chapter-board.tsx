@@ -4,7 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { addChapterAction, runConsistencyCheckAction } from "../actions";
+import {
+  addChapterAction,
+  generateAllScriptsAction,
+  runConsistencyCheckAction,
+} from "../actions";
 import type { ConsistencyIssue } from "@/lib/anthropic/consistency";
 import { ChapterCard, type Chapter } from "./chapter-card";
 
@@ -18,6 +22,7 @@ export function ChapterBoard({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [checking, setChecking] = useState(false);
+  const [generatingAll, setGeneratingAll] = useState(false);
   const [issues, setIssues] = useState<ConsistencyIssue[] | null>(null);
 
   function handleAddChapter() {
@@ -47,6 +52,17 @@ export function ChapterBoard({
       .finally(() => setChecking(false));
   }
 
+  function handleGenerateAllScripts() {
+    setGeneratingAll(true);
+    generateAllScriptsAction(materialId)
+      .then(() => {
+        toast.success("全章の台本を生成しました。");
+        router.refresh();
+      })
+      .catch(() => toast.error("台本の一括生成に失敗しました。"))
+      .finally(() => setGeneratingAll(false));
+  }
+
   const issueMap = new Map((issues ?? []).map((i) => [i.order_index, i.issue]));
   const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimated_minutes ?? 0), 0);
 
@@ -56,9 +72,17 @@ export function ChapterBoard({
         <p className="text-sm text-muted-foreground">
           全{chapters.length}章 ・ 合計 約{totalMinutes}分
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={handleConsistencyCheck} disabled={checking}>
             {checking ? "チェック中…" : "整合性チェック"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateAllScripts}
+            disabled={generatingAll || chapters.length === 0}
+          >
+            {generatingAll ? "台本を一括生成中…" : "全章の台本を生成"}
           </Button>
           <Button variant="outline" size="sm" onClick={handleAddChapter} disabled={isPending}>
             章を追加
