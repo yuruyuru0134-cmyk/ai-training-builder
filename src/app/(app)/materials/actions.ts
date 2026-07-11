@@ -431,7 +431,7 @@ export async function generateAllSlidesAction(materialId: string) {
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, title, summary")
+    .select("id, title, summary, script")
     .eq("material_id", materialId)
     .order("order_index");
 
@@ -441,7 +441,11 @@ export async function generateAllSlidesAction(materialId: string) {
     await generateAndSaveSlide(supabase, user.id, material, chapter);
   }
 
-  await supabase.from("materials").update({ status: "slides_ready" }).eq("id", materialId);
+  const allScriptsReady = chapters.every((c) => c.script && c.script.length > 0);
+  await supabase
+    .from("materials")
+    .update({ status: allScriptsReady ? "completed" : "slides_ready" })
+    .eq("id", materialId);
 
   revalidatePath(`/materials/${materialId}`);
 }
@@ -475,4 +479,31 @@ export async function runConsistencyCheckAction(
     });
     throw err;
   }
+}
+
+export async function deleteMaterialAction(materialId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("ログインが必要です。");
+
+  const { data: chapters } = await supabase
+    .from("chapters")
+    .select("id")
+    .eq("material_id", materialId);
+
+  const storagePaths = (chapters ?? []).flatMap((c) => [
+    `${user.id}/${c.id}.png`,
+    `${user.id}/${c.id}.jpg`,
+  ]);
+  if (storagePaths.length > 0) {
+    await supabase.storage.from("slides").remove(storagePaths);
+  }
+
+  // chapters / slides / generation_logs は ON DELETE CASCADE で連動して削除される
+  const { error } = await supabase.from("materials").delete().eq("id", materialId);
+  if (error) throw new Error("教材の削除に失敗しました。");
+
+  redirect("/dashboard");
 }

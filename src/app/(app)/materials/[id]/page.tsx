@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import {
   LEVEL_LABEL,
@@ -10,6 +12,7 @@ import {
   type MaterialTone,
 } from "@/lib/types";
 import { ChapterBoard } from "./chapter-board";
+import { DeleteMaterialButton } from "./delete-material-button";
 
 export default async function MaterialDetailPage({
   params,
@@ -52,13 +55,24 @@ export default async function MaterialDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold">{material.theme}</h1>
-        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-          <Badge variant="outline">{material.duration_minutes}分</Badge>
-          <Badge variant="outline">{LEVEL_LABEL[material.level as MaterialLevel]}</Badge>
-          <Badge variant="outline">{TONE_LABEL[material.tone as MaterialTone]}</Badge>
-          <Badge variant="secondary">{STATUS_LABEL[material.status as MaterialStatus]}</Badge>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold">{material.theme}</h1>
+          <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+            <Badge variant="outline">{material.duration_minutes}分</Badge>
+            <Badge variant="outline">{LEVEL_LABEL[material.level as MaterialLevel]}</Badge>
+            <Badge variant="outline">{TONE_LABEL[material.tone as MaterialTone]}</Badge>
+            <Badge variant="secondary">{STATUS_LABEL[material.status as MaterialStatus]}</Badge>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" render={<Link href={`/materials/${id}/preview`} />}>
+            全体プレビュー
+          </Button>
+          <Button variant="outline" size="sm" render={<a href={`/api/materials/${id}/export`} />}>
+            ZIPでダウンロード
+          </Button>
+          <DeleteMaterialButton materialId={id} />
         </div>
       </div>
 
