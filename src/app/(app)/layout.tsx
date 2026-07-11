@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
 
-export default async function DashboardLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -22,7 +22,10 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen flex-1 flex-col bg-muted/20">
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link href="/dashboard" className="text-sm font-semibold tracking-wide text-foreground">
+          <Link
+            href="/dashboard"
+            className="text-sm font-semibold tracking-wide text-foreground"
+          >
             AI研修教材オートビルダー
           </Link>
           <div className="flex items-center gap-3">

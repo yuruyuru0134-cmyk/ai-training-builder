@@ -1,0 +1,53 @@
+import { notFound } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { createClient } from "@/lib/supabase/server";
+import {
+  LEVEL_LABEL,
+  STATUS_LABEL,
+  TONE_LABEL,
+  type MaterialLevel,
+  type MaterialStatus,
+  type MaterialTone,
+} from "@/lib/types";
+import { ChapterBoard } from "./chapter-board";
+
+export default async function MaterialDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: material } = await supabase
+    .from("materials")
+    .select("id, theme, duration_minutes, level, tone, status")
+    .eq("id", id)
+    .single();
+
+  if (!material) {
+    notFound();
+  }
+
+  const { data: chapters } = await supabase
+    .from("chapters")
+    .select("id, order_index, title, summary, estimated_minutes, script, char_count, status")
+    .eq("material_id", id)
+    .order("order_index");
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-xl font-semibold">{material.theme}</h1>
+        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+          <Badge variant="outline">{material.duration_minutes}分</Badge>
+          <Badge variant="outline">{LEVEL_LABEL[material.level as MaterialLevel]}</Badge>
+          <Badge variant="outline">{TONE_LABEL[material.tone as MaterialTone]}</Badge>
+          <Badge variant="secondary">{STATUS_LABEL[material.status as MaterialStatus]}</Badge>
+        </div>
+      </div>
+
+      <ChapterBoard materialId={material.id} chapters={chapters ?? []} />
+    </div>
+  );
+}
