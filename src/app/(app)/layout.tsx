@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DecorativeBackground } from "@/components/decorative-background";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
 
@@ -19,8 +20,9 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-muted/20">
-      <header className="border-b border-border bg-background">
+    <div className="flex min-h-screen flex-1 flex-col">
+      <DecorativeBackground />
+      <header className="border-b border-border bg-background/90 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link
             href="/dashboard"
