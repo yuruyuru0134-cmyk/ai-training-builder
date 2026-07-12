@@ -109,7 +109,11 @@ async function requireOwnedMaterial(materialId: string) {
   return { supabase, material };
 }
 
-export async function regenerateChapterAction(materialId: string, chapterId: string) {
+export async function regenerateChapterAction(
+  materialId: string,
+  chapterId: string,
+  issue?: string,
+) {
   const { supabase, material } = await requireOwnedMaterial(materialId);
 
   const { data: chapters } = await supabase
@@ -131,6 +135,7 @@ export async function regenerateChapterAction(materialId: string, chapterId: str
       targetIndex: target.order_index,
       currentTitle: target.title,
       currentSummary: target.summary,
+      issue,
     });
 
     const { error } = await supabase

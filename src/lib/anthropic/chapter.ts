@@ -18,6 +18,7 @@ export async function regenerateChapter(params: {
   targetIndex: number;
   currentTitle: string;
   currentSummary: string;
+  issue?: string;
 }): Promise<RegeneratedChapter> {
   const client = createAnthropicClient();
 
@@ -36,7 +37,7 @@ ${otherChapters}
 再生成する章の現在の内容:
 タイトル: ${params.currentTitle}
 概要: ${params.currentSummary}
-
+${params.issue ? `\n整合性チェックでの指摘:\n${params.issue}\nこの指摘を解消することを最優先で改善してください。` : ""}
 制約:
 - 現在の内容をそのまま繰り返さず、表現・切り口・具体例のいずれかを変えて改善してください
 - 他の章と内容が重複しないようにしてください

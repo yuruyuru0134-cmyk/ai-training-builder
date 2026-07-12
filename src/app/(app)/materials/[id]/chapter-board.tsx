@@ -76,6 +76,10 @@ export function ChapterBoard({
       .finally(() => setGeneratingAllSlides(false));
   }
 
+  function handleIssueResolved(orderIndex: number) {
+    setIssues((prev) => prev?.filter((i) => i.order_index !== orderIndex) ?? prev);
+  }
+
   const issueMap = new Map((issues ?? []).map((i) => [i.order_index, i.issue]));
   const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimated_minutes ?? 0), 0);
 
@@ -118,6 +122,7 @@ export function ChapterBoard({
             materialId={materialId}
             chapter={chapter}
             issue={issueMap.get(chapter.order_index) ?? null}
+            onIssueResolved={handleIssueResolved}
             isFirst={i === 0}
             isLast={i === chapters.length - 1}
           />

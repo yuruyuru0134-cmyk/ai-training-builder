@@ -36,12 +36,14 @@ export function ChapterCard({
   materialId,
   chapter,
   issue,
+  onIssueResolved,
   isFirst,
   isLast,
 }: {
   materialId: string;
   chapter: Chapter;
   issue: string | null;
+  onIssueResolved: (orderIndex: number) => void;
   isFirst: boolean;
   isLast: boolean;
 }) {
@@ -102,8 +104,13 @@ export function ChapterCard({
   function handleRegenerate() {
     startTransition(async () => {
       try {
-        await regenerateChapterAction(materialId, chapter.id);
-        toast.success("章を再生成しました。");
+        await regenerateChapterAction(materialId, chapter.id, issue ?? undefined);
+        if (issue) {
+          onIssueResolved(chapter.order_index);
+          toast.success("指摘を踏まえて章を再生成しました。");
+        } else {
+          toast.success("章を再生成しました。");
+        }
         router.refresh();
       } catch {
         toast.error("再生成に失敗しました。");
@@ -224,7 +231,7 @@ export function ChapterCard({
             保存
           </Button>
           <Button size="sm" variant="outline" onClick={handleRegenerate} disabled={isPending}>
-            AIで再生成
+            {issue ? "指摘を踏まえて再生成" : "AIで再生成"}
           </Button>
           <Button
             size="sm"
