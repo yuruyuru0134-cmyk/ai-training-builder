@@ -131,7 +131,7 @@ async function regenerateChapterCore(
     const result = await regenerateChapter({
       theme: material.theme,
       level: material.level,
-      allChapterTitles: chapters.map((c) => c.title),
+      allChapters: chapters.map((c) => ({ title: c.title, summary: c.summary })),
       targetIndex: target.order_index,
       currentTitle: target.title,
       currentSummary: target.summary,
