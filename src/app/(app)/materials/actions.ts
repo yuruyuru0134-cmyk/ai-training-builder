@@ -175,36 +175,46 @@ export async function regenerateChapterAction(
   revalidatePath(`/materials/${materialId}`);
 }
 
+const BULK_REGENERATE_MAX_ROUNDS = 3;
+
 export async function regenerateFlaggedChaptersAction(
   materialId: string,
   issues: ConsistencyIssue[],
-): Promise<{ resolvedOrderIndexes: number[] }> {
+): Promise<{ remainingIssues: ConsistencyIssue[] }> {
   const { supabase, material } = await requireOwnedMaterial(materialId);
 
-  const { data: chapters } = await supabase
-    .from("chapters")
-    .select("id, order_index")
-    .eq("material_id", materialId)
-    .order("order_index");
+  let pending = issues;
 
-  const resolvedOrderIndexes: number[] = [];
+  for (let round = 0; round < BULK_REGENERATE_MAX_ROUNDS && pending.length > 0; round++) {
+    const { data: chapters } = await supabase
+      .from("chapters")
+      .select("id, order_index")
+      .eq("material_id", materialId)
+      .order("order_index");
 
-  for (const { order_index, issue } of issues) {
-    const chapterId = chapters?.find((c) => c.order_index === order_index)?.id;
-    if (!chapterId) continue;
-    // 一括再生成は1章の失敗で残りを止めない（整合性チェックのやり直しが手間なため）。
-    // 失敗はgenerateChapterCore内でgeneration_logsに記録済み。
-    try {
-      await regenerateChapterCore(supabase, material, materialId, chapterId, issue);
-      resolvedOrderIndexes.push(order_index);
-    } catch {
-      // skip, leave this chapter's issue flagged for retry
+    for (const { order_index, issue } of pending) {
+      const chapterId = chapters?.find((c) => c.order_index === order_index)?.id;
+      if (!chapterId) continue;
+      // 1章の失敗で残りを止めない。失敗はregenerateChapterCore内でgeneration_logsに記録済み。
+      try {
+        await regenerateChapterCore(supabase, material, materialId, chapterId, issue);
+      } catch {
+        // このissueは今回のラウンドでは解消されなかった扱いのまま、次の再チェックに委ねる
+      }
     }
+
+    // 一部の章を直しても他章との新たな矛盾が生まれ得るため、全章を対象に再チェックする
+    const { data: allChapters } = await supabase
+      .from("chapters")
+      .select("order_index, title, summary")
+      .eq("material_id", materialId)
+      .order("order_index");
+    pending = allChapters ? await checkConsistency(allChapters) : [];
   }
 
   revalidatePath(`/materials/${materialId}`);
 
-  return { resolvedOrderIndexes };
+  return { remainingIssues: pending };
 }
 
 export async function updateChapterAction(

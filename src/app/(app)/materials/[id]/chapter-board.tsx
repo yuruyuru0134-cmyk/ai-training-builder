@@ -86,15 +86,15 @@ export function ChapterBoard({
     if (!issues || issues.length === 0) return;
     setRegeneratingFlagged(true);
     regenerateFlaggedChaptersAction(materialId, issues)
-      .then(({ resolvedOrderIndexes }) => {
-        setIssues((prev) =>
-          prev ? prev.filter((i) => !resolvedOrderIndexes.includes(i.order_index)) : prev,
-        );
-        if (resolvedOrderIndexes.length === issues.length) {
-          toast.success(`指摘のあった${issues.length}章をまとめて再生成しました。`);
+      .then(({ remainingIssues }) => {
+        setIssues(remainingIssues);
+        if (remainingIssues.length === 0) {
+          toast.success("指摘のあった章をすべて解消しました。");
         } else {
+          // 同じ章に複数の指摘が付くことがあるため、表示中のバッジ数（章単位）で伝える
+          const remainingChapterCount = new Set(remainingIssues.map((i) => i.order_index)).size;
           toast.warning(
-            `${resolvedOrderIndexes.length}/${issues.length}章を再生成しました。失敗した章は再度お試しください。`,
+            `${remainingChapterCount}章の指摘がまだ残っています。もう一度「一括再生成」をお試しください。`,
           );
         }
         router.refresh();
@@ -104,6 +104,7 @@ export function ChapterBoard({
   }
 
   const issueMap = new Map((issues ?? []).map((i) => [i.order_index, i.issue]));
+  const issueChapterCount = issueMap.size;
   const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimated_minutes ?? 0), 0);
 
   return (
@@ -125,7 +126,7 @@ export function ChapterBoard({
             >
               {regeneratingFlagged
                 ? "指摘のある章を一括再生成中…"
-                : `指摘のある${issues.length}章を一括再生成`}
+                : `指摘のある${issueChapterCount}章を一括再生成`}
             </Button>
           ) : null}
           <Button
