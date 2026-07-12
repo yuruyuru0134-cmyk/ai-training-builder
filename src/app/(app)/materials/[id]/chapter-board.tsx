@@ -8,6 +8,7 @@ import {
   addChapterAction,
   generateAllScriptsAction,
   generateAllSlidesAction,
+  regenerateFlaggedChaptersAction,
   runConsistencyCheckAction,
 } from "../actions";
 import type { ConsistencyIssue } from "@/lib/anthropic/consistency";
@@ -25,6 +26,7 @@ export function ChapterBoard({
   const [checking, setChecking] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generatingAllSlides, setGeneratingAllSlides] = useState(false);
+  const [regeneratingFlagged, setRegeneratingFlagged] = useState(false);
   const [issues, setIssues] = useState<ConsistencyIssue[] | null>(null);
 
   function handleAddChapter() {
@@ -80,6 +82,27 @@ export function ChapterBoard({
     setIssues((prev) => prev?.filter((i) => i.order_index !== orderIndex) ?? prev);
   }
 
+  function handleRegenerateFlagged() {
+    if (!issues || issues.length === 0) return;
+    setRegeneratingFlagged(true);
+    regenerateFlaggedChaptersAction(materialId, issues)
+      .then(({ resolvedOrderIndexes }) => {
+        setIssues((prev) =>
+          prev ? prev.filter((i) => !resolvedOrderIndexes.includes(i.order_index)) : prev,
+        );
+        if (resolvedOrderIndexes.length === issues.length) {
+          toast.success(`指摘のあった${issues.length}章をまとめて再生成しました。`);
+        } else {
+          toast.warning(
+            `${resolvedOrderIndexes.length}/${issues.length}章を再生成しました。失敗した章は再度お試しください。`,
+          );
+        }
+        router.refresh();
+      })
+      .catch(() => toast.error("一括再生成に失敗しました。"))
+      .finally(() => setRegeneratingFlagged(false));
+  }
+
   const issueMap = new Map((issues ?? []).map((i) => [i.order_index, i.issue]));
   const totalMinutes = chapters.reduce((sum, c) => sum + (c.estimated_minutes ?? 0), 0);
 
@@ -93,6 +116,18 @@ export function ChapterBoard({
           <Button variant="outline" size="sm" onClick={handleConsistencyCheck} disabled={checking}>
             {checking ? "チェック中…" : "整合性チェック"}
           </Button>
+          {issues && issues.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRegenerateFlagged}
+              disabled={regeneratingFlagged}
+            >
+              {regeneratingFlagged
+                ? "指摘のある章を一括再生成中…"
+                : `指摘のある${issues.length}章を一括再生成`}
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             size="sm"

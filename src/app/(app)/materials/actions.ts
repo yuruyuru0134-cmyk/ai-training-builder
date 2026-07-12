@@ -109,13 +109,13 @@ async function requireOwnedMaterial(materialId: string) {
   return { supabase, material };
 }
 
-export async function regenerateChapterAction(
+async function regenerateChapterCore(
+  supabase: Awaited<ReturnType<typeof requireOwnedMaterial>>["supabase"],
+  material: Awaited<ReturnType<typeof requireOwnedMaterial>>["material"],
   materialId: string,
   chapterId: string,
   issue?: string,
 ) {
-  const { supabase, material } = await requireOwnedMaterial(materialId);
-
   const { data: chapters } = await supabase
     .from("chapters")
     .select("id, order_index, title, summary")
@@ -163,8 +163,48 @@ export async function regenerateChapterAction(
     });
     throw err;
   }
+}
+
+export async function regenerateChapterAction(
+  materialId: string,
+  chapterId: string,
+  issue?: string,
+) {
+  const { supabase, material } = await requireOwnedMaterial(materialId);
+  await regenerateChapterCore(supabase, material, materialId, chapterId, issue);
+  revalidatePath(`/materials/${materialId}`);
+}
+
+export async function regenerateFlaggedChaptersAction(
+  materialId: string,
+  issues: ConsistencyIssue[],
+): Promise<{ resolvedOrderIndexes: number[] }> {
+  const { supabase, material } = await requireOwnedMaterial(materialId);
+
+  const { data: chapters } = await supabase
+    .from("chapters")
+    .select("id, order_index")
+    .eq("material_id", materialId)
+    .order("order_index");
+
+  const resolvedOrderIndexes: number[] = [];
+
+  for (const { order_index, issue } of issues) {
+    const chapterId = chapters?.find((c) => c.order_index === order_index)?.id;
+    if (!chapterId) continue;
+    // 一括再生成は1章の失敗で残りを止めない（整合性チェックのやり直しが手間なため）。
+    // 失敗はgenerateChapterCore内でgeneration_logsに記録済み。
+    try {
+      await regenerateChapterCore(supabase, material, materialId, chapterId, issue);
+      resolvedOrderIndexes.push(order_index);
+    } catch {
+      // skip, leave this chapter's issue flagged for retry
+    }
+  }
 
   revalidatePath(`/materials/${materialId}`);
+
+  return { resolvedOrderIndexes };
 }
 
 export async function updateChapterAction(
