@@ -56,6 +56,24 @@ export function ChapterCard({
   );
   const [script, setScript] = useState(chapter.script);
 
+  // useState only seeds from `chapter` on first mount, so after a regenerate
+  // action calls router.refresh() the textareas would keep showing stale
+  // content forever without this resync (render-time adjustment per React docs,
+  // not an effect, so it doesn't cause an extra flicker render).
+  const [syncedChapter, setSyncedChapter] = useState(chapter);
+  if (
+    syncedChapter.title !== chapter.title ||
+    syncedChapter.summary !== chapter.summary ||
+    syncedChapter.estimated_minutes !== chapter.estimated_minutes ||
+    syncedChapter.script !== chapter.script
+  ) {
+    setSyncedChapter(chapter);
+    setTitle(chapter.title);
+    setSummary(chapter.summary);
+    setEstimatedMinutes(String(chapter.estimated_minutes ?? ""));
+    setScript(chapter.script);
+  }
+
   const dirty =
     title !== chapter.title ||
     summary !== chapter.summary ||
