@@ -18,61 +18,44 @@ export type SlideCtx = {
   };
   accent: string;
   // 背景スタイルを差し替えたい場合に指定する（src/lib/slide-backgrounds.ts参照）。
-  // 省略時はDEFAULT_BACKGROUND_STYLEを使用する。
+  // 省略時はDEFAULT_BACKGROUND_STYLEを使用する。画像がない章のフォールバックにのみ使う。
   backgroundStyle?: BackgroundStyleKey;
   // 章の内容（H3詳細）にちなんでAI生成した背景画像。src/lib/gemini/slide.tsで
-  // 既にトーンの背景色を重ねて薄く加工済みのものを渡す想定。指定時はベクター
-  // 背景（backgroundStyle）の代わりにこちらを使う。
+  // 既にトーンの背景色を重ねて薄く加工済みのものを渡す想定。
   backgroundImage?: { data: string; mimeType: string } | null;
 };
 
 type TextTheme = {
   bgColor: string;
-  h1Color: string;
-  h3Color: string;
   footerColor: string;
 };
 
-const BADGE_W = 0.85;
-const BADGE_X = SLIDE_W - 1.5;
-const BADGE_Y = 0.45;
-const TITLE_W = BADGE_X - 0.3 - 0.8;
+// Canvaで生成した参考テンプレート（左：ソリッドパネルに白文字、右：写真をそのまま
+// クッキリ見せる）を踏襲したレイアウト。文字を画像の上に直接重ねないため、
+// 从来のようなぼかし・減光・グラデーションでの可読性確保が一切不要になり、
+// 写真側は加工済みの画像でもそのまま鮮明に見せられる。
+const LEFT_PANEL_W = 4.3;
+const RIGHT_X = LEFT_PANEL_W;
+const RIGHT_W = SLIDE_W - LEFT_PANEL_W;
+const PAD = 0.5;
+const CONTENT_W = LEFT_PANEL_W - PAD * 2;
 
-// H3ピル（左カラム）とフローチャート（右カラム）を並べるための列幅。
-// フローチャートは台本から抽出した手順を右側に重ねて表示するため、
-// H3ピルは全幅ではなく左側だけに収める。
-const LEFT_COL_W = 4.6;
-const FLOW_X = 5.9;
-const FLOW_W = SLIDE_W - 0.8 - FLOW_X;
-const FLOW_Y_START = 2.7;
-const FLOW_STEP_PITCH = 0.56;
-const FLOW_BOX_H = 0.4;
-const FLOW_ARROW_GAP = 0.06;
+// 右下に重ねる手順フローチャート。写真の上半分は遮らず、下側だけに収める
+// ことで、参考テンプレートの「写真を丸ごと見せる」印象をなるべく保つ。
+const FLOW_W = RIGHT_W - 0.8;
+const FLOW_X = RIGHT_X + (RIGHT_W - FLOW_W) / 2;
+const FLOW_BOX_H = 0.38;
+const FLOW_ARROW_GAP = 0.05;
 
-// pptxgenjsは図形の塗りにグラデーションを指定できないため、文字の右端より
-// 少し先で終わる細い帯を並べて透明度を段階的に上げ、グラデーションで
-// 消えていくように見せる（H3ピルの「文字が終わってからフェード」用）。
-const H3_FONT_SIZE = 14;
-const H3_FADE_STEPS = 14;
-
-function estimateTextWidthIn(text: string, fontSizePt: number): number {
-  let widthPt = 0;
-  for (const ch of text) {
-    const code = ch.codePointAt(0) ?? 0;
-    // 全角文字（CJK・全角記号など）の実測グリフ幅はfontSize全角より狭いため、
-    // 0.7倍程度で近似する（実際のレンダリング結果から逆算した係数）。
-    const isFullWidth = code > 0x2e7f;
-    widthPt += isFullWidth ? fontSizePt * 0.7 : fontSizePt * 0.4;
-  }
-  return widthPt / 72;
+function flowLayout(stepCount: number) {
+  const pitch = 0.5;
+  const totalH = stepCount > 0 ? (stepCount - 1) * pitch + FLOW_BOX_H : 0;
+  const yStart = SLIDE_H - 0.35 - totalH;
+  return { pitch, yStart };
 }
 
-// 参考画像①（水色パステル・丸いフォトプレースホルダー・ソフトなグラデーション）の
-// 視覚言語を一貫して踏襲する: 淡くぼかした円で背景に奥行きを出し、
-// 章番号は丸いバッジとして見せ、詳細情報も角丸のソフトなカードに収める。
-// 画像は使わず、H1(タイトル)→H2(サブタイトル)→H3(詳細情報)の文字の強弱で
-// 情報の重要度を伝える。ナレーション台本から抽出した内容
-// （chapters.slide_subtitle / slide_details）を表示する。
+// ナレーション台本から抽出したH1(タイトル)/H2(サブタイトル)/H3(詳細情報)/
+// 手順フローチャートを、左の色付きパネルと右の写真パネルに分けて表示する。
 function buildTextOnlySlide(
   { pres, chapter, accent, backgroundStyle, backgroundImage }: SlideCtx,
   theme: TextTheme,
@@ -80,134 +63,98 @@ function buildTextOnlySlide(
   const slide = pres.addSlide();
   slide.background = { color: theme.bgColor };
 
-  // 背景画像がある場合はそれをスライド全面に敷き、無い場合はベクター背景
-  // スタイルにフォールバックする。3トーンとも同じ考え方で一貫性を保つ。
-  // 新しいベクタースタイルを追加したい場合はsrc/lib/slide-backgrounds/に
-  // 新規ファイルを作成する（1ファイル1種類）。
+  // 左パネル: アクセントカラーのソリッド塗り。以降の文字は全て白系にして、
+  // どんな写真が右側に来ても左側の可読性には一切影響しないようにする。
+  slide.addShape(pres.ShapeType.rect, {
+    x: 0, y: 0, w: LEFT_PANEL_W, h: SLIDE_H,
+    fill: { color: accent }, line: { type: "none" },
+  });
+
+  // 右パネル: 背景画像があればそのまま鮮明に敷く（文字が乗らないため、ぼかしや
+  // 減光は不要）。無い場合のみベクター背景スタイルにフォールバックする。
   if (backgroundImage) {
     slide.addImage({
       data: `data:${backgroundImage.mimeType};base64,${backgroundImage.data}`,
-      x: 0, y: 0, w: SLIDE_W, h: SLIDE_H,
-      sizing: { type: "cover", w: SLIDE_W, h: SLIDE_H },
-    });
-    // タイトル・サブタイトルは画像の上に直接乗るため、その領域だけ背景色の
-    // スクリムを重ねて、どんな画像内容でも文字が確実に読めるようにする。
-    // 画像自体の減光を控えめにした分（画像をはっきり見せるため）、
-    // このスクリムをやや濃くして文字の可読性を確保している。
-    slide.addShape(pres.ShapeType.rect, {
-      x: 0, y: 0, w: SLIDE_W, h: 2.85,
-      fill: { color: theme.bgColor, transparency: 15 }, line: { type: "none" },
+      x: RIGHT_X, y: 0, w: RIGHT_W, h: SLIDE_H,
+      sizing: { type: "cover", w: RIGHT_W, h: SLIDE_H },
     });
   } else {
+    slide.addShape(pres.ShapeType.rect, {
+      x: RIGHT_X, y: 0, w: RIGHT_W, h: SLIDE_H,
+      fill: { color: theme.bgColor }, line: { type: "none" },
+    });
     BACKGROUND_STYLES[backgroundStyle ?? DEFAULT_BACKGROUND_STYLE]({
-      pres, slide, accent, slideW: SLIDE_W, slideH: SLIDE_H,
+      pres, slide, accent, slideW: RIGHT_W, slideH: SLIDE_H, offsetX: RIGHT_X,
     });
   }
 
   const no = String(chapter.order_index + 1).padStart(2, "0");
-  const x = 0.8;
-  const w = SLIDE_W - x * 2;
+  const x = PAD;
 
-  // 章番号は丸いバッジとして表示（①の「丸いフォトプレースホルダー」を
-  // 画像を使わないこの構成向けに置き換えたモチーフ）。
-  slide.addShape(pres.ShapeType.ellipse, {
-    x: BADGE_X, y: BADGE_Y, w: BADGE_W, h: BADGE_W, fill: { color: accent }, line: { type: "none" },
-    shadow: { type: "outer", color: "000000", opacity: 0.15, blur: 6, offset: 2, angle: 90 },
-  });
-  slide.addText(no, {
-    x: BADGE_X, y: BADGE_Y, w: BADGE_W, h: BADGE_W, fontSize: 22, bold: true, color: "FFFFFF",
-    align: "center", valign: "middle",
+  slide.addText(`CHAPTER ${no}`, {
+    x, y: 0.4, w: CONTENT_W, h: 0.3, fontSize: 11, bold: true, color: "FFFFFF",
+    charSpacing: 2, valign: "top",
   });
 
-  // H1: タイトル。最も大きく太いウェイトで主役として見せる。
-  // 2行に折り返っても後続要素と衝突しないよう、常に2行分の高さを確保する。
+  // H1: タイトル。左パネルの主役。2行に折り返っても後続要素と衝突しないよう、
+  // 常に2行分の高さを確保する。
   slide.addText(chapter.title, {
-    x, y: 0.5, w: TITLE_W, h: 1.4, fontSize: 36, bold: true, color: theme.h1Color, valign: "top", fit: "shrink",
+    x, y: 0.75, w: CONTENT_W, h: 1.5, fontSize: 30, bold: true, color: "FFFFFF",
+    valign: "top", fit: "shrink",
   });
 
   slide.addShape(pres.ShapeType.line, {
-    x, y: 1.95, w: 0.7, h: 0, line: { color: accent, width: 2.5 },
+    x, y: 2.35, w: 0.6, h: 0, line: { color: "FFFFFF", width: 2, transparency: 30 },
   });
 
-  // H2: サブタイトル。H1より小さく、アクセントカラーで中間の重みを出す。
+  // H2: サブタイトル。白の半透明でH1より軽い重みを出す。
   const subtitle = chapter.slide_subtitle;
   if (subtitle) {
     slide.addText(subtitle, {
-      x, y: 2.1, w, h: 0.6, fontSize: 20, bold: true, color: accent, valign: "top", fit: "shrink",
+      x, y: 2.5, w: CONTENT_W, h: 0.55, fontSize: 15, bold: true, color: "FFFFFF", transparency: 10,
+      valign: "top", fit: "shrink",
     });
   }
 
-  // H3: 詳細情報。①の「ソフトな角丸カード」を踏襲し、各項目を淡い色の
-  // ハイライトに収めて並べる。最も軽いウェイト・小さいサイズで補足情報として見せる。
-  // 背景画像がある場合、アクセント色のまま不透明度だけ上げると濃い色の
-  // カードになり暗いテキストが読めなくなるため、背景色ベースの明るいカード
-  // （すりガラス風）に切り替えて、どんな画像の上でも読める組み合わせにする。
-  // ハイライトは行全体を均一に塗らず、文字の右端あたりまでは不透明、
-  // そこから先はグラデーションで透明に消えていくようにする。
+  // H3: 詳細情報。左パネルが単色なので、①のようなカード処理は不要になり、
+  // 白文字＋ドットのシンプルな箇条書きで十分な視認性が出る。
   const details = chapter.slide_details ?? [];
-  const pillColor = backgroundImage ? theme.bgColor : accent;
-  const pillBaseTransparency = backgroundImage ? 8 : 85;
-  const textX = x + 0.38;
-  const textMaxW = LEFT_COL_W - 0.55;
   details.forEach((item, i) => {
-    const rowY = 2.9 + i * 0.52;
-    const estTextW = Math.min(estimateTextWidthIn(item, H3_FONT_SIZE) + 0.2, textMaxW);
-    const solidW = Math.max(textX + estTextW - x, 0.6);
-
-    slide.addShape(pres.ShapeType.roundRect, {
-      x, y: rowY, w: Math.min(solidW, LEFT_COL_W), h: 0.42, rectRadius: 0.1,
-      fill: { color: pillColor, transparency: pillBaseTransparency }, line: { type: "none" },
-    });
-
-    const fadeStartX = x + solidW;
-    const fadeW = x + LEFT_COL_W - fadeStartX;
-    if (fadeW > 0.05) {
-      const stepW = fadeW / H3_FADE_STEPS;
-      for (let s = 0; s < H3_FADE_STEPS; s++) {
-        const t = s / (H3_FADE_STEPS - 1);
-        const stripTransparency = Math.min(pillBaseTransparency + t * (99 - pillBaseTransparency), 99);
-        slide.addShape(pres.ShapeType.rect, {
-          x: fadeStartX + s * stepW, y: rowY, w: stepW + 0.01, h: 0.42,
-          fill: { color: pillColor, transparency: stripTransparency }, line: { type: "none" },
-        });
-      }
-    }
-
+    const rowY = 3.15 + i * 0.42;
     slide.addShape(pres.ShapeType.ellipse, {
-      x: x + 0.18, y: rowY + 0.17, w: 0.08, h: 0.08, fill: { color: accent }, line: { type: "none" },
+      x, y: rowY + 0.09, w: 0.06, h: 0.06, fill: { color: "FFFFFF", transparency: 20 }, line: { type: "none" },
     });
     slide.addText(item, {
-      x: textX, y: rowY, w: textMaxW, h: 0.42, fontSize: H3_FONT_SIZE, color: theme.h3Color, valign: "middle", fit: "shrink",
+      x: x + 0.2, y: rowY, w: CONTENT_W - 0.2, h: 0.38, fontSize: 12.5, color: "FFFFFF", transparency: 5,
+      valign: "top", fit: "shrink",
     });
   });
 
-  // 右カラム: 台本から抽出した手順を、枠線つきの箱＋矢印という一般的な
-  // フローチャートの見た目で表示する（参考画像のような業務フロー図を踏襲）。
-  // 箱は白寄りの塗り＋アクセントカラーの枠線で「図形」として認識しやすくし、
-  // 矢印は箱の外側だけをまっすぐ結んで流れの向きを明確にする。
+  // 右パネル下部: 台本から抽出した手順を、枠線つきの箱＋矢印のフローチャート
+  // として重ねる。写真の上半分は遮らず、参考テンプレートの「写真を丸ごと
+  // 見せる」印象をなるべく保つ。
   const flowSteps = chapter.slide_flow_steps ?? [];
-  const flowBoxTransparency = backgroundImage ? 4 : 78;
+  const { pitch: flowPitch, yStart: flowYStart } = flowLayout(flowSteps.length);
   flowSteps.forEach((step, i) => {
-    const boxY = FLOW_Y_START + i * FLOW_STEP_PITCH;
+    const boxY = flowYStart + i * flowPitch;
 
     if (i < flowSteps.length - 1) {
       slide.addShape(pres.ShapeType.line, {
         x: FLOW_X + FLOW_W / 2, y: boxY + FLOW_BOX_H + FLOW_ARROW_GAP,
-        w: 0, h: FLOW_STEP_PITCH - FLOW_BOX_H - FLOW_ARROW_GAP * 2,
+        w: 0, h: flowPitch - FLOW_BOX_H - FLOW_ARROW_GAP * 2,
         line: { color: accent, width: 2, endArrowType: "triangle" },
       });
     }
 
     slide.addShape(pres.ShapeType.roundRect, {
       x: FLOW_X, y: boxY, w: FLOW_W, h: FLOW_BOX_H, rectRadius: 0.06,
-      fill: { color: pillColor, transparency: flowBoxTransparency },
+      fill: { color: "FFFFFF", transparency: 4 },
       line: { color: accent, width: 1.25 },
-      shadow: { type: "outer", color: "000000", opacity: 0.12, blur: 3, offset: 1, angle: 90 },
+      shadow: { type: "outer", color: "000000", opacity: 0.18, blur: 4, offset: 1, angle: 90 },
     });
 
     // ステップ文言のキーワードに応じて、事前生成済みのアイコン（1度だけGeminiで
     // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）を左側に添える。
-    // マッチしない場合はアイコンなしでテキストを中央に表示する。
     const iconKey = pickFlowIcon(step);
     const iconSize = FLOW_BOX_H - 0.14;
     if (iconKey) {
@@ -219,8 +166,8 @@ function buildTextOnlySlide(
     const textX = iconKey ? FLOW_X + 0.1 + iconSize + 0.08 : FLOW_X + 0.1;
     const textW = iconKey ? FLOW_W - 0.2 - iconSize - 0.08 : FLOW_W - 0.2;
     slide.addText(step, {
-      x: textX, y: boxY, w: textW, h: FLOW_BOX_H, fontSize: 12.5, bold: true,
-      color: theme.h3Color, align: iconKey ? "left" : "center", valign: "middle", fit: "shrink",
+      x: textX, y: boxY, w: textW, h: FLOW_BOX_H, fontSize: 12, bold: true,
+      color: "333333", align: iconKey ? "left" : "center", valign: "middle", fit: "shrink",
     });
   });
 
@@ -228,28 +175,13 @@ function buildTextOnlySlide(
 }
 
 export function buildBusinessSlide(ctx: SlideCtx) {
-  return buildTextOnlySlide(ctx, {
-    bgColor: "F7F9FC",
-    h1Color: "1A1A1A",
-    h3Color: "444444",
-    footerColor: "999999",
-  });
+  return buildTextOnlySlide(ctx, { bgColor: "F7F9FC", footerColor: "999999" });
 }
 
 export function buildCasualSlide(ctx: SlideCtx) {
-  return buildTextOnlySlide(ctx, {
-    bgColor: "FFF7E8",
-    h1Color: "3A2C14",
-    h3Color: "6B5A3C",
-    footerColor: "9C8563",
-  });
+  return buildTextOnlySlide(ctx, { bgColor: "FFF7E8", footerColor: "9C8563" });
 }
 
 export function buildMinimalSlide(ctx: SlideCtx) {
-  return buildTextOnlySlide(ctx, {
-    bgColor: "FFFFFF",
-    h1Color: "1A1A1A",
-    h3Color: "555555",
-    footerColor: "AAAAAA",
-  });
+  return buildTextOnlySlide(ctx, { bgColor: "FFFFFF", footerColor: "AAAAAA" });
 }

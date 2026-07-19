@@ -9,11 +9,11 @@ import type { BackgroundStyle } from "./types";
 //   3. スライド全体を囲む薄い枠線 → ①のフレームボーダー
 // 「地味」というフィードバックを受け、円の塗りは93/95%透明から大きく下げて
 // 色をしっかり効かせている。
-export const softCircles: BackgroundStyle = ({ pres, slide, accent, slideW, slideH }) => {
+export const softCircles: BackgroundStyle = ({ pres, slide, accent, slideW, slideH, offsetX = 0 }) => {
   // 右上: 大きな円 + 同心円アウトライン（ワイヤーフレーム球体）。
   // 外側ほど薄く・線も細くすることで、均一な機械的リングではなく
   // 奥行きのあるグラデーションのように見せる。
-  const topCx = slideW - 0.1;
+  const topCx = offsetX + slideW - 0.1;
   const topCy = 0.1;
   const topR = 3.15;
   slide.addShape(pres.ShapeType.ellipse, {
@@ -35,13 +35,13 @@ export const softCircles: BackgroundStyle = ({ pres, slide, accent, slideW, slid
 
   // 左下: 中くらいの円（対角のバランス）
   slide.addShape(pres.ShapeType.ellipse, {
-    x: -2.2, y: slideH - 2.0, w: 4.4, h: 4.4,
+    x: offsetX - 2.2, y: slideH - 2.0, w: 4.4, h: 4.4,
     fill: { color: accent, transparency: 85 }, line: { type: "none" },
   });
 
   // 右下: 放射状サンバースト（①の輪状モチーフ）。光線の長さを3段階でずらし、
   // 均一な機械的な星形ではなく、コーラルやウニのような有機的な密度を出す。
-  const burstCx = slideW - 1.15;
+  const burstCx = offsetX + slideW - 1.15;
   const burstCy = slideH - 0.78;
   const rayCount = 36;
   const tiers = [
@@ -70,15 +70,15 @@ export const softCircles: BackgroundStyle = ({ pres, slide, accent, slideW, slid
     fill: { type: "none" }, line: { color: accent, width: 0.5, transparency: 45 },
   });
 
-  // スライド全体を細い二重線で縁取る（①のフレームボーダー）。
+  // 描画対象の矩形全体を細い二重線で縁取る（①のフレームボーダー）。
   // 1本だけより、外側をごく薄く・内側をやや濃くした二重線にすることで
   // 印刷物のフレームのような仕上がりの精度を出す。
   slide.addShape(pres.ShapeType.rect, {
-    x: 0.12, y: 0.12, w: slideW - 0.24, h: slideH - 0.24,
+    x: offsetX + 0.12, y: 0.12, w: slideW - 0.24, h: slideH - 0.24,
     fill: { type: "none" }, line: { color: accent, width: 0.4, transparency: 75 },
   });
   slide.addShape(pres.ShapeType.rect, {
-    x: 0.17, y: 0.17, w: slideW - 0.34, h: slideH - 0.34,
+    x: offsetX + 0.17, y: 0.17, w: slideW - 0.34, h: slideH - 0.34,
     fill: { type: "none" }, line: { color: accent, width: 0.5, transparency: 58 },
   });
 };
