@@ -1,5 +1,6 @@
 import type PptxGenJS from "pptxgenjs";
 import { BACKGROUND_STYLES, DEFAULT_BACKGROUND_STYLE, type BackgroundStyleKey } from "./slide-backgrounds";
+import { FLOW_ICONS, pickFlowIcon } from "./slide-flow-icons";
 
 // レイアウトはpres.layout = "LAYOUT_16x9"（10in × 5.63in）を前提にした固定値。
 export const SLIDE_W = 10;
@@ -203,9 +204,23 @@ function buildTextOnlySlide(
       line: { color: accent, width: 1.25 },
       shadow: { type: "outer", color: "000000", opacity: 0.12, blur: 3, offset: 1, angle: 90 },
     });
+
+    // ステップ文言のキーワードに応じて、事前生成済みのアイコン（1度だけGeminiで
+    // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）を左側に添える。
+    // マッチしない場合はアイコンなしでテキストを中央に表示する。
+    const iconKey = pickFlowIcon(step);
+    const iconSize = FLOW_BOX_H - 0.14;
+    if (iconKey) {
+      slide.addImage({
+        data: `data:image/png;base64,${FLOW_ICONS[iconKey]}`,
+        x: FLOW_X + 0.1, y: boxY + 0.07, w: iconSize, h: iconSize,
+      });
+    }
+    const textX = iconKey ? FLOW_X + 0.1 + iconSize + 0.08 : FLOW_X + 0.1;
+    const textW = iconKey ? FLOW_W - 0.2 - iconSize - 0.08 : FLOW_W - 0.2;
     slide.addText(step, {
-      x: FLOW_X + 0.1, y: boxY, w: FLOW_W - 0.2, h: FLOW_BOX_H, fontSize: 12.5, bold: true,
-      color: theme.h3Color, align: "center", valign: "middle", fit: "shrink",
+      x: textX, y: boxY, w: textW, h: FLOW_BOX_H, fontSize: 12.5, bold: true,
+      color: theme.h3Color, align: iconKey ? "left" : "center", valign: "middle", fit: "shrink",
     });
   });
 
