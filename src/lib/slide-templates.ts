@@ -43,10 +43,10 @@ const TITLE_W = BADGE_X - 0.3 - 0.8;
 const LEFT_COL_W = 4.6;
 const FLOW_X = 5.9;
 const FLOW_W = SLIDE_W - 0.8 - FLOW_X;
-const FLOW_Y_START = 2.75;
-const FLOW_STEP_PITCH = 0.5;
-const FLOW_BOX_H = 0.36;
-const FLOW_CIRCLE_W = 0.32;
+const FLOW_Y_START = 2.7;
+const FLOW_STEP_PITCH = 0.56;
+const FLOW_BOX_H = 0.4;
+const FLOW_ARROW_GAP = 0.06;
 
 // pptxgenjsは図形の塗りにグラデーションを指定できないため、文字の右端より
 // 少し先で終わる細い帯を並べて透明度を段階的に上げ、グラデーションで
@@ -180,38 +180,32 @@ function buildTextOnlySlide(
     });
   });
 
-  // 右カラム: 台本から抽出した手順をフローチャート（番号つき丸 + カード + 矢印）
-  // として表示する。H3ピルと同じ配色・すりガラス処理で統一感を保つ。
+  // 右カラム: 台本から抽出した手順を、枠線つきの箱＋矢印という一般的な
+  // フローチャートの見た目で表示する（参考画像のような業務フロー図を踏襲）。
+  // 箱は白寄りの塗り＋アクセントカラーの枠線で「図形」として認識しやすくし、
+  // 矢印は箱の外側だけをまっすぐ結んで流れの向きを明確にする。
   const flowSteps = chapter.slide_flow_steps ?? [];
+  const flowBoxTransparency = backgroundImage ? 4 : 78;
   flowSteps.forEach((step, i) => {
     const boxY = FLOW_Y_START + i * FLOW_STEP_PITCH;
 
     if (i < flowSteps.length - 1) {
       slide.addShape(pres.ShapeType.line, {
-        x: FLOW_X + FLOW_CIRCLE_W / 2, y: boxY + FLOW_CIRCLE_W,
-        w: 0, h: FLOW_STEP_PITCH - FLOW_CIRCLE_W,
-        line: { color: accent, width: 1.5, endArrowType: "triangle", transparency: 25 },
+        x: FLOW_X + FLOW_W / 2, y: boxY + FLOW_BOX_H + FLOW_ARROW_GAP,
+        w: 0, h: FLOW_STEP_PITCH - FLOW_BOX_H - FLOW_ARROW_GAP * 2,
+        line: { color: accent, width: 2, endArrowType: "triangle" },
       });
     }
 
-    slide.addShape(pres.ShapeType.ellipse, {
-      x: FLOW_X, y: boxY, w: FLOW_CIRCLE_W, h: FLOW_CIRCLE_W,
-      fill: { color: accent }, line: { type: "none" },
-    });
-    slide.addText(String(i + 1), {
-      x: FLOW_X, y: boxY, w: FLOW_CIRCLE_W, h: FLOW_CIRCLE_W, fontSize: 12, bold: true, color: "FFFFFF",
-      align: "center", valign: "middle",
-    });
-
-    const cardX = FLOW_X + FLOW_CIRCLE_W + 0.12;
-    const cardW = FLOW_W - FLOW_CIRCLE_W - 0.12;
     slide.addShape(pres.ShapeType.roundRect, {
-      x: cardX, y: boxY - 0.01, w: cardW, h: FLOW_BOX_H, rectRadius: 0.08,
-      fill: { color: pillColor, transparency: pillBaseTransparency }, line: { type: "none" },
+      x: FLOW_X, y: boxY, w: FLOW_W, h: FLOW_BOX_H, rectRadius: 0.06,
+      fill: { color: pillColor, transparency: flowBoxTransparency },
+      line: { color: accent, width: 1.25 },
+      shadow: { type: "outer", color: "000000", opacity: 0.12, blur: 3, offset: 1, angle: 90 },
     });
     slide.addText(step, {
-      x: cardX + 0.12, y: boxY - 0.01, w: cardW - 0.2, h: FLOW_BOX_H, fontSize: 12,
-      color: theme.h3Color, valign: "middle", fit: "shrink",
+      x: FLOW_X + 0.1, y: boxY, w: FLOW_W - 0.2, h: FLOW_BOX_H, fontSize: 12.5, bold: true,
+      color: theme.h3Color, align: "center", valign: "middle", fit: "shrink",
     });
   });
 

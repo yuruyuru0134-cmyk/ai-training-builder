@@ -157,28 +157,27 @@ export function SlidePreview({
           )}
         </div>
 
-        {/* 右カラム: 台本から抽出した手順のフローチャート（番号つき丸 + カード）。
-            pptx出力では丸同士を矢印でもつなぐが、プレビューでは簡略化している。 */}
+        {/* 右カラム: 台本から抽出した手順を、枠線つきの箱＋矢印のフローチャートで
+            表示する（pptx側src/lib/slide-templates.tsと同じ見た目）。 */}
         {flowSteps && flowSteps.length > 0 ? (
-          <ol className="flex-1 space-y-2">
+          <ol className="flex-1">
             {flowSteps.slice(0, 5).map((step, i) => (
-              <li key={i} className="flex items-center gap-1.5 text-[10px] leading-relaxed">
-                <span
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
-                  style={{ backgroundColor: accent }}
+              <li key={i}>
+                <div
+                  className="rounded-md border px-2 py-1.5 text-center text-[10px] font-bold leading-tight shadow-sm"
+                  style={{
+                    borderColor: accent,
+                    backgroundColor: imageUrl ? hexToRgba(theme.bgColor, 0.95) : hexToRgba(theme.bgColor, 0.85),
+                    color: theme.h3Color,
+                  }}
                 >
-                  {i + 1}
-                </span>
-                <span
-                  className="line-clamp-1 flex-1 rounded px-1.5 py-1"
-                  style={
-                    imageUrl
-                      ? { backgroundColor: hexToRgba(theme.bgColor, 0.88), color: theme.h3Color }
-                      : { color: theme.h3Color }
-                  }
-                >
-                  {step}
-                </span>
+                  <span className="line-clamp-1">{step}</span>
+                </div>
+                {i < flowSteps.slice(0, 5).length - 1 ? (
+                  <div className="flex justify-center py-0.5 text-[9px] leading-none" style={{ color: accent }}>
+                    ▼
+                  </div>
+                ) : null}
               </li>
             ))}
           </ol>
