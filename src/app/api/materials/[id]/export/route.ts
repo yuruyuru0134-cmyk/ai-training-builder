@@ -1,9 +1,18 @@
-import PptxGenJS from "pptxgenjs";
+import { createRequire } from "node:module";
+import type PptxGenJSType from "pptxgenjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { MaterialTone } from "@/lib/types";
 import { TONE_ACCENT } from "@/lib/slide-theme";
 import { buildBusinessSlide, buildCasualSlide, buildMinimalSlide } from "@/lib/slide-templates";
+
+// pptxgenjsはESM/CJSの両ビルドを"exports"条件で出し分けているが、
+// serverExternalPackages経由でESM側(dist/pptxgen.es.js)がNode標準の
+// import()で読み込まれると、当該ファイルに"type":"module"が無いために
+// 「Cannot use import statement outside a module」で落ちる（Vercel実行環境で確認済み）。
+// createRequireで明示的にrequireすることで確実にCJSビルドを読み込ませる。
+const require = createRequire(import.meta.url);
+const PptxGenJS = require("pptxgenjs") as unknown as typeof PptxGenJSType;
 
 function sanitizeFilename(name: string) {
   return name.replace(/[\\/:*?"<>|]/g, "").trim() || "untitled";
