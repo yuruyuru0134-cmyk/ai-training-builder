@@ -86,31 +86,47 @@ export function SlidePreview({
         )}
 
         {/* 右パネル下部: 台本から抽出した手順を、1枚の半透明パネル上に
-            縦のレール＋マーカーで並べる。個別の枠付きカードより連続性が出る。 */}
+            縦のレール＋マーカーで並べる。個別の枠付きカードより連続性が出る。
+            見出しラベル・マーカーの光彩・左端のアクセントスパインでpptx版と
+            同じ「デザインされたカード」の印象に揃える。 */}
         {steps.length > 0 ? (
-          <div className="absolute inset-x-3 bottom-2 rounded-lg bg-white/85 px-2.5 py-2 shadow-sm">
-            <ol className="relative space-y-1.5">
-              {steps.length > 1 ? (
-                <span
-                  className="absolute left-[7px] top-2 bottom-2 w-px"
-                  style={{ backgroundColor: accent, opacity: 0.4 }}
-                  aria-hidden
-                />
-              ) : null}
-              {steps.map((step, i) => (
-                <li key={i} className="relative flex items-center gap-1.5">
+          <div className="absolute inset-x-3 bottom-2">
+            <span
+              className="mb-1 block pl-0.5 text-[8px] font-bold leading-none tracking-[0.15em]"
+              style={{ color: accent }}
+            >
+              PROCESS
+            </span>
+            <div className="relative overflow-hidden rounded-lg bg-white/85 py-2 pl-3 pr-2.5 shadow-sm">
+              <span className="absolute inset-y-[10%] left-0 w-[3px]" style={{ backgroundColor: accent }} aria-hidden />
+              <ol className="relative space-y-1.5">
+                {steps.length > 1 ? (
                   <span
-                    className="z-10 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white"
-                    style={{ backgroundColor: accent }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="line-clamp-1 text-[9px] font-bold leading-tight" style={{ color: "#333333" }}>
-                    {step}
-                  </span>
-                </li>
-              ))}
-            </ol>
+                    className="absolute left-[7px] top-2 bottom-2 w-px"
+                    style={{ backgroundColor: accent, opacity: 0.4 }}
+                    aria-hidden
+                  />
+                ) : null}
+                {steps.map((step, i) => (
+                  <li key={i} className="relative flex items-center gap-1.5">
+                    <span
+                      className="absolute -left-[3px] -top-[3px] h-5 w-5 rounded-full"
+                      style={{ backgroundColor: accent, opacity: 0.16 }}
+                      aria-hidden
+                    />
+                    <span
+                      className="z-10 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white shadow"
+                      style={{ backgroundColor: accent }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="line-clamp-1 text-[9px] font-bold leading-tight" style={{ color: "#333333" }}>
+                      {step}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         ) : null}
       </div>
