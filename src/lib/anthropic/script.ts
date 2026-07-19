@@ -1,5 +1,5 @@
 import { createAnthropicClient, SCRIPT_MODEL } from "./client";
-import { LEVEL_LABEL, TONE_LABEL, type MaterialLevel, type MaterialTone } from "@/lib/types";
+import { LEVEL_LABEL, LEVEL_PROMPT_HINT, TONE_LABEL, type MaterialLevel, type MaterialTone } from "@/lib/types";
 
 const MAX_CHARS = 800;
 
@@ -15,7 +15,7 @@ function buildPrompt(params: {
   return `あなたはAI研修教材のナレーターです。以下の章の読み上げ用台本を作成してください。
 
 教材テーマ: ${params.theme}
-対象レベル: ${LEVEL_LABEL[params.level]}
+対象レベル: ${LEVEL_LABEL[params.level]}（${LEVEL_PROMPT_HINT[params.level]}）
 トーン: ${TONE_LABEL[params.tone]}
 章タイトル: ${params.chapterTitle}
 章概要: ${params.chapterSummary}

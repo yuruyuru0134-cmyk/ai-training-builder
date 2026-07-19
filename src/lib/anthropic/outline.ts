@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { createAnthropicClient, OUTLINE_MODEL } from "./client";
-import { LEVEL_LABEL, type MaterialLevel } from "@/lib/types";
+import { LEVEL_LABEL, LEVEL_PROMPT_HINT, type MaterialLevel } from "@/lib/types";
 
 const OutlineSchema = z.object({
   chapters: z
@@ -33,7 +33,7 @@ function buildPrompt(params: {
   return `あなたはAI研修教材の構成作家です。以下の条件で研修教材の章構成を作成してください。
 
 テーマ: ${params.theme}
-対象レベル: ${LEVEL_LABEL[params.level]}
+対象レベル: ${LEVEL_LABEL[params.level]}（${LEVEL_PROMPT_HINT[params.level]}）
 教材全体の所要時間: ${params.durationMinutes}分
 
 制約:

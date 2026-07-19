@@ -52,12 +52,17 @@ const STEP_TIER = { w: LEFT_PANEL_W + 0.7, h: 1.35 };
 // 右下に重ねる手順フローチャート。写真の上半分は遮らず、下側だけに収める。
 // 「箱の中に文字、矢印でつなぐ」という一般的なフローチャートの見た目を守るため、
 // 個別の枠線付きボックス（角丸矩形）を縦の矢印でつなぐ構成にする。各ボックスの
-// 左側にアイコン（またはキーワード不一致時は番号バッジ）を入れる。
-const FLOW_W = RIGHT_W - 0.8;
+// 左側にアイコン（またはキーワード不一致時は番号バッジ）を入れる。文字を「…」で
+// 省略するより読みやすさを優先するため、ボックスは写真パネルの幅ぎりぎりまで広げ、
+// 高さにも余裕を持たせている（写真の一部と重なっても構わない）。
+const FLOW_W = RIGHT_W - 0.3;
 const FLOW_X = RIGHT_X + (RIGHT_W - FLOW_W) / 2;
-const FLOW_BOX_H = 0.42;
-const FLOW_ROW_H = 0.56;
-const FLOW_ARROW_GAP = 0.06;
+const FLOW_BOX_H = 0.5;
+const FLOW_ROW_H = 0.72;
+// 矢印の実際の長さ = FLOW_ROW_H - FLOW_BOX_H - FLOW_ARROW_GAP*2。ここが狭すぎると
+// 矢印が短すぎて矢じりがほぼ見えなくなるため、はっきり矢印とわかる長さを確保する
+// （以前はここが0.02inしかなく、矢印がほぼ点にしか見えていなかった）。
+const FLOW_ARROW_GAP = 0.03;
 
 function flowLayout(stepCount: number) {
   const pitch = FLOW_ROW_H;
@@ -173,7 +178,7 @@ function buildTextOnlySlide(
         slide.addShape(pres.ShapeType.line, {
           x: FLOW_X + FLOW_W / 2, y: boxY + FLOW_BOX_H + FLOW_ARROW_GAP,
           w: 0, h: flowPitch - FLOW_BOX_H - FLOW_ARROW_GAP * 2,
-          line: { color: accent, width: 2, endArrowType: "triangle" },
+          line: { color: accent, width: 3, endArrowType: "triangle" },
         });
       }
 

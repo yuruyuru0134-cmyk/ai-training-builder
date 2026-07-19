@@ -10,20 +10,21 @@ const SlideContentSchema = z.object({
 export type SlideContent = z.infer<typeof SlideContentSchema>;
 
 // Zodのmax()はClaudeの生成自体を制約せず、超過時に例外を投げるだけで扱いにくいため、
-// 文字数はプロンプトで指示しつつ、最終的にはここで確実に切り詰める。
-// 単語の途中で不自然に切れるのを避けるため、上限内で最後の読点・句点・空白まで戻って切る。
-const MAX_LEN = 32;
+// 文字数はプロンプトで指示しつつ、最終的にはここで確実に切り詰める。プロンプト側で
+// 30字以内を指示しているため、これは想定外に長い出力に対する安全策としてのみ働く。
+// 「…」表記は読みにくいというフィードバックを受け、省略記号は付けない。単語の途中で
+// 不自然に切れるのを避けるため、上限内で最後の読点・句点・空白まで戻って切る。
+const MAX_LEN = 40;
 function clip(text: string): string {
   if (text.length <= MAX_LEN) return text;
-  const truncated = text.slice(0, MAX_LEN - 1);
+  const truncated = text.slice(0, MAX_LEN);
   const lastBreak = Math.max(
     truncated.lastIndexOf("、"),
     truncated.lastIndexOf("。"),
     truncated.lastIndexOf("　"),
     truncated.lastIndexOf(" "),
   );
-  const cut = lastBreak > MAX_LEN * 0.5 ? truncated.slice(0, lastBreak) : truncated;
-  return `${cut}…`;
+  return lastBreak > MAX_LEN * 0.5 ? truncated.slice(0, lastBreak) : truncated;
 }
 
 // ナレーション台本から、スライド表示用の文章コンテンツをH1(タイトル)/H2(サブタイトル)/
@@ -44,8 +45,9 @@ export async function extractSlideContent(params: {
 ${params.script || "（未生成）"}
 
 抽出するもの:
-- subtitle: この章の核心を一文で表す、サブタイトル。タイトルの繰り返しではなく、台本の内容を踏まえた具体的な一文にしてください。必ず24字以内に収めてください
-- details: 台本の中から重要なポイントを2〜4個抽出した詳細情報。各項目は台本の実際の内容に基づく具体的な文にしてください。必ず各24字以内に収めてください。1項目につき論点は1つだけにし、「〜、〜、〜」のように複数の論点を読点でつないで詰め込むことは絶対にしないでください。文末は「です・ます」を省いた体言止めまたは短い言い切りで簡潔にしてください`;
+- subtitle: この章の核心を一文で表す、サブタイトル。タイトルの繰り返しではなく、台本の内容を踏まえた具体的な一文にしてください。必ず30字以内に収めてください
+- details: 台本の中から重要なポイントを2〜4個抽出した詳細情報。各項目は台本の実際の内容に基づく具体的な文にしてください。必ず各30字以内に収めてください。1項目につき論点は1つだけにし、「〜、〜、〜」のように複数の論点を読点でつないで詰め込むことは絶対にしないでください。文末は「です・ます」を省いた体言止めまたは短い言い切りで簡潔にしてください
+- 専門用語やカタカナ略語は避け、平易な言葉にしてください`;
 
   const response = await client.messages.parse({
     model: SCRIPT_MODEL,

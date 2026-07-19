@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { createAnthropicClient, OUTLINE_MODEL } from "./client";
-import { LEVEL_LABEL, type MaterialLevel } from "@/lib/types";
+import { LEVEL_LABEL, LEVEL_PROMPT_HINT, type MaterialLevel } from "@/lib/types";
 
 const ChapterSchema = z.object({
   title: z.string(),
@@ -33,7 +33,7 @@ export async function regenerateChapter(params: {
   const prompt = `あなたはAI研修教材の構成作家です。以下の教材の中の1章を改善してください。
 
 テーマ: ${params.theme}
-対象レベル: ${LEVEL_LABEL[params.level]}
+対象レベル: ${LEVEL_LABEL[params.level]}（${LEVEL_PROMPT_HINT[params.level]}）
 
 教材全体の章構成:
 ${otherChapters}
