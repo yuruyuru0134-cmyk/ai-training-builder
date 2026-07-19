@@ -10,6 +10,7 @@ import { generateScript, SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import { extractSlideContent } from "@/lib/anthropic/slide-content";
 import { extractSlideFlow } from "@/lib/anthropic/slide-flow";
 import { generateSlideImage } from "@/lib/gemini/slide";
+import { BACKGROUND_STYLES, DEFAULT_BACKGROUND_STYLE, type BackgroundStyleKey } from "@/lib/slide-backgrounds";
 import type { MaterialLevel, MaterialTone, SlideImageMode } from "@/lib/types";
 import type { CreateMaterialState } from "./types";
 
@@ -22,6 +23,12 @@ export async function createMaterial(
   const level = String(formData.get("level") ?? "beginner") as MaterialLevel;
   const tone = String(formData.get("tone") ?? "business") as MaterialTone;
   const slideImageMode = String(formData.get("slide_image_mode") ?? "gemini") as SlideImageMode;
+  const backgroundStyleInput = String(formData.get("background_style") ?? DEFAULT_BACKGROUND_STYLE);
+  // フォーム値は文字列のため、レジストリに存在する有効なキーかを検証してから使う。
+  const backgroundStyle: BackgroundStyleKey =
+    backgroundStyleInput in BACKGROUND_STYLES
+      ? (backgroundStyleInput as BackgroundStyleKey)
+      : DEFAULT_BACKGROUND_STYLE;
 
   if (!theme) {
     return { error: "テーマを入力してください。" };
@@ -47,6 +54,7 @@ export async function createMaterial(
       level,
       tone,
       slide_image_mode: slideImageMode,
+      background_style: backgroundStyle,
       status: "draft",
     })
     .select("id")

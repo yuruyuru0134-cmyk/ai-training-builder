@@ -4,6 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { SlidePreview } from "@/components/slide-preview";
+import {
+  BACKGROUND_STYLE_LABEL,
+  DEFAULT_BACKGROUND_STYLE,
+  type BackgroundStyleKey,
+} from "@/lib/slide-backgrounds";
 import { LEVEL_LABEL, type MaterialLevel, type MaterialTone, type SlideImageMode } from "@/lib/types";
 
 export default async function MaterialPreviewPage({
@@ -16,7 +21,7 @@ export default async function MaterialPreviewPage({
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, duration_minutes, level, tone, slide_image_mode")
+    .select("id, theme, duration_minutes, level, tone, slide_image_mode, background_style")
     .eq("id", id)
     .single();
 
@@ -26,6 +31,10 @@ export default async function MaterialPreviewPage({
 
   const tone = material.tone as MaterialTone;
   const materialImageMode = material.slide_image_mode as SlideImageMode;
+  const materialBackgroundStyle: BackgroundStyleKey =
+    material.background_style in BACKGROUND_STYLE_LABEL
+      ? (material.background_style as BackgroundStyleKey)
+      : DEFAULT_BACKGROUND_STYLE;
 
   const { data: chapters } = await supabase
     .from("chapters")
@@ -73,6 +82,7 @@ export default async function MaterialPreviewPage({
                   details={details}
                   flowSteps={chapter.slide_flow_steps ?? []}
                   imageUrl={imageUrl}
+                  backgroundStyle={materialBackgroundStyle}
                 />
               </div>
               <p className="whitespace-pre-wrap rounded-md border border-border bg-background p-4 text-sm leading-relaxed">

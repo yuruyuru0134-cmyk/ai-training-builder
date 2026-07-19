@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { createMaterial } from "../actions";
 import { initialCreateMaterialState } from "../types";
+import { BACKGROUND_STYLE_LABEL } from "@/lib/slide-backgrounds";
 
 export function MaterialForm() {
   const [state, formAction, pending] = useActionState(
@@ -89,6 +90,22 @@ export function MaterialForm() {
         <p className="text-xs text-muted-foreground">
           章ごとに後から個別に上書きできます。
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="background_style">背景デザイン（内蔵テンプレート使用時・画像なしの章）</Label>
+        <Select name="background_style" defaultValue="soft-circles">
+          <SelectTrigger id="background_style" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(BACKGROUND_STYLE_LABEL).map(([key, label]) => (
+              <SelectItem key={key} value={key}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {state.error ? (

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import { SlidePreview } from "@/components/slide-preview";
+import type { BackgroundStyleKey } from "@/lib/slide-backgrounds";
 import { SLIDE_IMAGE_MODE_LABEL, type MaterialTone, type SlideImageMode } from "@/lib/types";
 import {
   deleteChapterAction,
@@ -51,6 +52,7 @@ export function ChapterCard({
   chapter,
   tone,
   materialImageMode,
+  materialBackgroundStyle,
   issue,
   onIssueResolved,
   isFirst,
@@ -60,6 +62,7 @@ export function ChapterCard({
   chapter: Chapter;
   tone: MaterialTone;
   materialImageMode: SlideImageMode;
+  materialBackgroundStyle: BackgroundStyleKey;
   issue: string | null;
   onIssueResolved: (orderIndex: number) => void;
   isFirst: boolean;
@@ -323,6 +326,7 @@ export function ChapterCard({
               details={chapter.slideDetails}
               flowSteps={chapter.slideFlowSteps}
               imageUrl={chapter.slideImageUrl}
+              backgroundStyle={materialBackgroundStyle}
             />
           </div>
           <p className="text-xs text-muted-foreground">

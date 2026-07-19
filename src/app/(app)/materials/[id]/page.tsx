@@ -4,6 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import {
+  BACKGROUND_STYLE_LABEL,
+  DEFAULT_BACKGROUND_STYLE,
+  type BackgroundStyleKey,
+} from "@/lib/slide-backgrounds";
+import {
   LEVEL_LABEL,
   SLIDE_IMAGE_MODE_LABEL,
   STATUS_LABEL,
@@ -29,7 +34,7 @@ export default async function MaterialDetailPage({
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, duration_minutes, level, tone, status, slide_image_mode")
+    .select("id, theme, duration_minutes, level, tone, status, slide_image_mode, background_style")
     .eq("id", id)
     .single();
 
@@ -38,6 +43,10 @@ export default async function MaterialDetailPage({
   }
 
   const materialImageMode = material.slide_image_mode as SlideImageMode;
+  const materialBackgroundStyle: BackgroundStyleKey =
+    material.background_style in BACKGROUND_STYLE_LABEL
+      ? (material.background_style as BackgroundStyleKey)
+      : DEFAULT_BACKGROUND_STYLE;
 
   const { data: chapters } = await supabase
     .from("chapters")
@@ -72,6 +81,7 @@ export default async function MaterialDetailPage({
             <Badge variant="outline">{LEVEL_LABEL[material.level as MaterialLevel]}</Badge>
             <Badge variant="outline">{TONE_LABEL[material.tone as MaterialTone]}</Badge>
             <Badge variant="outline">{SLIDE_IMAGE_MODE_LABEL[materialImageMode]}</Badge>
+            <Badge variant="outline">{BACKGROUND_STYLE_LABEL[materialBackgroundStyle]}</Badge>
             <Badge variant="secondary">{STATUS_LABEL[material.status as MaterialStatus]}</Badge>
           </div>
         </div>
@@ -103,6 +113,7 @@ export default async function MaterialDetailPage({
         chapters={chaptersWithSlides}
         tone={material.tone as MaterialTone}
         materialImageMode={materialImageMode}
+        materialBackgroundStyle={materialBackgroundStyle}
       />
     </div>
   );

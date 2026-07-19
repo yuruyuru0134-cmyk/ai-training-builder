@@ -1,5 +1,115 @@
 import { TONE_ACCENT } from "@/lib/slide-theme";
 import type { MaterialTone } from "@/lib/types";
+import type { BackgroundStyleKey } from "@/lib/slide-backgrounds";
+
+// pptx側の各背景スタイル（src/lib/slide-backgrounds/配下）と視覚的な印象を
+// 揃えたSVG版フォールバック。写真パネルの座標系（viewBox 0 0 1000 563）に
+// 合わせて簡略化して再現している。
+function BackgroundStyleSvg({ style, accent }: { style: BackgroundStyleKey; accent: string }) {
+  switch (style) {
+    case "gradient-cards": {
+      const bandCount = 8;
+      return (
+        <>
+          {Array.from({ length: bandCount }).map((_, i) => {
+            const t = i / (bandCount - 1);
+            return (
+              <rect
+                key={i}
+                x={(1000 / bandCount) * i}
+                y={0}
+                width={1000 / bandCount + 2}
+                height={563}
+                fill={t < 0.5 ? "#3E6FF0" : "#8A4FE0"}
+                opacity={0.15 + t * 0.15}
+              />
+            );
+          })}
+          <rect x={60} y={40} width={220} height={130} rx={14} fill="#FFFFFF" opacity={0.12} stroke="#FFFFFF" strokeOpacity={0.3} />
+          <rect x={330} y={15} width={180} height={110} rx={14} fill="#FFFFFF" opacity={0.1} stroke="#FFFFFF" strokeOpacity={0.25} />
+        </>
+      );
+    }
+    case "color-grid": {
+      const colors = ["#1F6F78", "#2E9E8F", "#F2B23E", "#1F3A5F", accent, "#2E9E8F"];
+      const gx = 480, gy = 45, cw = 150, ch = 95, gap = 8;
+      return (
+        <>
+          <rect x={0} y={0} width={1000} height={260} fill="#F4F1EA" />
+          {colors.map((c, i) => {
+            const col = i % 3;
+            const row = Math.floor(i / 3);
+            return (
+              <rect
+                key={i}
+                x={gx + col * (cw + gap)}
+                y={gy + row * (ch + gap)}
+                width={cw}
+                height={ch}
+                fill={c}
+              />
+            );
+          })}
+        </>
+      );
+    }
+    case "vintage-frame":
+      return (
+        <>
+          <rect x={0} y={0} width={1000} height={563} fill="#F3ECE0" />
+          <rect x={22} y={22} width={956} height={519} fill="none" stroke="#6B4A34" strokeWidth={1} strokeOpacity={0.35} />
+          <rect x={30} y={30} width={940} height={503} fill="none" stroke="#6B4A34" strokeWidth={2} strokeOpacity={0.2} />
+          <line x1={70} y1={78} x2={160} y2={78} stroke="#6B4A34" strokeWidth={1.5} strokeOpacity={0.4} />
+          <circle cx={178} cy={78} r={4} fill="#6B4A34" opacity={0.4} />
+        </>
+      );
+    case "soft-blobs": {
+      const blob = (cx: number, cy: number, r: number, color: string) => (
+        <>
+          <circle cx={cx} cy={cy} r={r} fill={color} opacity={0.16} />
+          <circle cx={cx} cy={cy} r={r * 0.75} fill={color} opacity={0.14} />
+          <circle cx={cx} cy={cy} r={r * 0.5} fill={color} opacity={0.13} />
+        </>
+      );
+      return (
+        <>
+          {blob(280, 90, 155, "#9FD1F5")}
+          {blob(760, 40, 130, "#F5B8DA")}
+          {blob(600, 210, 110, "#CDB6F2")}
+        </>
+      );
+    }
+    case "line-art-dark":
+      return (
+        <>
+          <rect x={0} y={0} width={1000} height={563} fill="#141414" />
+          <polyline
+            points="740,270 800,90 850,190 920,20"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeOpacity={0.85}
+            strokeWidth={1.5}
+          />
+          <circle cx={920} cy={20} r={3} fill="#FFFFFF" opacity={0.9} />
+          <circle cx={430} cy={310} r={55} fill="none" stroke={accent} strokeOpacity={0.6} strokeWidth={1.5} />
+        </>
+      );
+    case "none":
+      return <rect x={0} y={0} width={1000} height={563} fill="#F7F9FC" />;
+    case "soft-circles":
+    default:
+      return (
+        <>
+          <circle cx={990} cy={10} r={315} fill={accent} opacity={0.19} />
+          <circle cx={990} cy={10} r={132} fill="none" stroke={accent} strokeWidth={1.4} opacity={0.58} />
+          <circle cx={990} cy={10} r={198} fill="none" stroke={accent} strokeWidth={1.1} opacity={0.48} />
+          <circle cx={990} cy={10} r={255} fill="none" stroke={accent} strokeWidth={0.9} opacity={0.38} />
+          <circle cx={-100} cy={483} r={220} fill={accent} opacity={0.15} />
+          <rect x={6} y={6} width={988} height={551} fill="none" stroke={accent} strokeWidth={0.7} opacity={0.25} />
+        </>
+      );
+  }
+}
 
 // pptx出力（src/lib/slide-templates.ts）と構造を揃えたHTML版プレビュー。
 // ただの「左ソリッドパネル＋右写真」の平凡な2分割にしないよう、
@@ -16,6 +126,7 @@ export function SlidePreview({
   details,
   flowSteps,
   imageUrl,
+  backgroundStyle = "soft-circles",
 }: {
   tone: MaterialTone;
   chapterNo: number;
@@ -24,6 +135,7 @@ export function SlidePreview({
   details: string[];
   flowSteps?: string[];
   imageUrl?: string | null;
+  backgroundStyle?: BackgroundStyleKey;
 }) {
   const accent = `#${TONE_ACCENT[tone]}`;
   const no = String(chapterNo).padStart(2, "0");
@@ -77,12 +189,7 @@ export function SlidePreview({
             preserveAspectRatio="none"
             style={{ backgroundColor: "#F7F9FC" }}
           >
-            <circle cx="990" cy="10" r="315" fill={accent} opacity={0.19} />
-            <circle cx="990" cy="10" r="132" fill="none" stroke={accent} strokeWidth="1.4" opacity={0.58} />
-            <circle cx="990" cy="10" r="198" fill="none" stroke={accent} strokeWidth="1.1" opacity={0.48} />
-            <circle cx="990" cy="10" r="255" fill="none" stroke={accent} strokeWidth="0.9" opacity={0.38} />
-            <circle cx="-100" cy="483" r="220" fill={accent} opacity={0.15} />
-            <rect x="6" y="6" width="988" height="551" fill="none" stroke={accent} strokeWidth="0.7" opacity={0.25} />
+            <BackgroundStyleSvg style={backgroundStyle} accent={accent} />
           </svg>
         )}
 

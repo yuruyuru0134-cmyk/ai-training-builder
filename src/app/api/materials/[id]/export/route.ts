@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { MaterialTone, SlideImageMode } from "@/lib/types";
 import { TONE_ACCENT } from "@/lib/slide-theme";
 import { buildBusinessSlide, buildCasualSlide, buildMinimalSlide } from "@/lib/slide-templates";
+import { BACKGROUND_STYLES, DEFAULT_BACKGROUND_STYLE, type BackgroundStyleKey } from "@/lib/slide-backgrounds";
 
 // pptxgenjsはESM/CJSの両ビルドを"exports"条件で出し分けているが、
 // serverExternalPackages経由でESM側(dist/pptxgen.es.js)がNode標準の
@@ -43,7 +44,7 @@ export async function GET(
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, tone, slide_image_mode")
+    .select("id, theme, tone, slide_image_mode, background_style")
     .eq("id", id)
     .single();
 
@@ -52,6 +53,10 @@ export async function GET(
   }
 
   const materialImageMode = material.slide_image_mode as SlideImageMode;
+  const backgroundStyle: BackgroundStyleKey =
+    material.background_style in BACKGROUND_STYLES
+      ? (material.background_style as BackgroundStyleKey)
+      : DEFAULT_BACKGROUND_STYLE;
 
   const { data: chapters } = await supabase
     .from("chapters")
@@ -83,6 +88,7 @@ export async function GET(
       materialTheme: material.theme,
       chapter,
       accent,
+      backgroundStyle,
       backgroundImage,
     });
     slide.addNotes(chapter.script || "（台本未生成）");
