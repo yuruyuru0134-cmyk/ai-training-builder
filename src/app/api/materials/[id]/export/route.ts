@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import type PptxGenJSType from "pptxgenjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import type { MaterialTone } from "@/lib/types";
+import type { MaterialTone, SlideImageMode } from "@/lib/types";
 import { TONE_ACCENT } from "@/lib/slide-theme";
 import { buildBusinessSlide, buildCasualSlide, buildMinimalSlide } from "@/lib/slide-templates";
 
@@ -43,7 +43,7 @@ export async function GET(
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, tone")
+    .select("id, theme, tone, slide_image_mode")
     .eq("id", id)
     .single();
 
@@ -51,9 +51,13 @@ export async function GET(
     return new NextResponse("Not Found", { status: 404 });
   }
 
+  const materialImageMode = material.slide_image_mode as SlideImageMode;
+
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, order_index, title, script, slide_subtitle, slide_details, slide_flow_steps, slides(image_url, status)")
+    .select(
+      "id, order_index, title, script, slide_subtitle, slide_details, slide_flow_steps, slide_image_mode, slides(image_url, status)",
+    )
     .eq("material_id", id)
     .order("order_index");
 
@@ -68,8 +72,11 @@ export async function GET(
 
   for (const chapter of chapters ?? []) {
     const slideRow = chapter.slides?.[0];
+    const effectiveImageMode = (chapter.slide_image_mode as SlideImageMode | null) ?? materialImageMode;
     const backgroundImage =
-      slideRow?.status === "ready" ? await fetchBackgroundImage(slideRow.image_url) : null;
+      effectiveImageMode === "gemini" && slideRow?.status === "ready"
+        ? await fetchBackgroundImage(slideRow.image_url)
+        : null;
 
     const slide = buildSlide({
       pres,

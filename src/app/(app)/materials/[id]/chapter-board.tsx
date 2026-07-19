@@ -12,17 +12,19 @@ import {
   runConsistencyCheckAction,
 } from "../actions";
 import type { ConsistencyIssue } from "@/lib/anthropic/consistency";
-import type { MaterialTone } from "@/lib/types";
+import type { MaterialTone, SlideImageMode } from "@/lib/types";
 import { ChapterCard, type Chapter } from "./chapter-card";
 
 export function ChapterBoard({
   materialId,
   chapters,
   tone,
+  materialImageMode,
 }: {
   materialId: string;
   chapters: Chapter[];
   tone: MaterialTone;
+  materialImageMode: SlideImageMode;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -161,6 +163,7 @@ export function ChapterBoard({
             materialId={materialId}
             chapter={chapter}
             tone={tone}
+            materialImageMode={materialImageMode}
             issue={issueMap.get(chapter.order_index) ?? null}
             onIssueResolved={handleIssueResolved}
             isFirst={i === 0}

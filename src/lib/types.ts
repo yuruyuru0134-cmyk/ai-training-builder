@@ -6,6 +6,7 @@ export type MaterialStatus =
   | "scripts_ready"
   | "slides_ready"
   | "completed";
+export type SlideImageMode = "gemini" | "template";
 
 export const LEVEL_LABEL: Record<MaterialLevel, string> = {
   beginner: "初級",
@@ -25,4 +26,9 @@ export const STATUS_LABEL: Record<MaterialStatus, string> = {
   scripts_ready: "台本作成済み",
   slides_ready: "スライド作成済み",
   completed: "完成",
+};
+
+export const SLIDE_IMAGE_MODE_LABEL: Record<SlideImageMode, string> = {
+  gemini: "AIで生成（Gemini）",
+  template: "内蔵テンプレート",
 };

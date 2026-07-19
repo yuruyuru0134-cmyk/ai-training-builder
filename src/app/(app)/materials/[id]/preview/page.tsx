@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { SlidePreview } from "@/components/slide-preview";
-import { LEVEL_LABEL, type MaterialLevel, type MaterialTone } from "@/lib/types";
+import { LEVEL_LABEL, type MaterialLevel, type MaterialTone, type SlideImageMode } from "@/lib/types";
 
 export default async function MaterialPreviewPage({
   params,
@@ -16,7 +16,7 @@ export default async function MaterialPreviewPage({
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, duration_minutes, level, tone")
+    .select("id, theme, duration_minutes, level, tone, slide_image_mode")
     .eq("id", id)
     .single();
 
@@ -25,10 +25,13 @@ export default async function MaterialPreviewPage({
   }
 
   const tone = material.tone as MaterialTone;
+  const materialImageMode = material.slide_image_mode as SlideImageMode;
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, order_index, title, script, slide_subtitle, slide_details, slide_flow_steps, slides(image_url, status)")
+    .select(
+      "id, order_index, title, script, slide_subtitle, slide_details, slide_flow_steps, slide_image_mode, slides(image_url, status)",
+    )
     .eq("material_id", id)
     .order("order_index");
 
@@ -56,7 +59,9 @@ export default async function MaterialPreviewPage({
         {(chapters ?? []).map((chapter) => {
           const details: string[] = chapter.slide_details ?? [];
           const slideRow = chapter.slides?.[0];
-          const imageUrl = slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null;
+          const effectiveImageMode = (chapter.slide_image_mode as SlideImageMode | null) ?? materialImageMode;
+          const imageUrl =
+            effectiveImageMode === "gemini" && slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null;
           return (
             <section key={chapter.id} className="space-y-3">
               <div className="aspect-video w-full overflow-hidden rounded-md border border-border">

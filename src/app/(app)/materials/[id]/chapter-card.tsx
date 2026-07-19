@@ -9,9 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import { SlidePreview } from "@/components/slide-preview";
-import type { MaterialTone } from "@/lib/types";
+import { SLIDE_IMAGE_MODE_LABEL, type MaterialTone, type SlideImageMode } from "@/lib/types";
 import {
   deleteChapterAction,
   generateScriptAction,
@@ -19,6 +26,7 @@ import {
   moveChapterAction,
   regenerateChapterAction,
   updateChapterAction,
+  updateChapterImageModeAction,
 } from "../actions";
 
 export type Chapter = {
@@ -35,12 +43,14 @@ export type Chapter = {
   slideFlowSteps: string[];
   slideImageUrl: string | null;
   slideStatus: string | null;
+  slideImageMode: SlideImageMode | null;
 };
 
 export function ChapterCard({
   materialId,
   chapter,
   tone,
+  materialImageMode,
   issue,
   onIssueResolved,
   isFirst,
@@ -49,6 +59,7 @@ export function ChapterCard({
   materialId: string;
   chapter: Chapter;
   tone: MaterialTone;
+  materialImageMode: SlideImageMode;
   issue: string | null;
   onIssueResolved: (orderIndex: number) => void;
   isFirst: boolean;
@@ -58,6 +69,8 @@ export function ChapterCard({
   const [isPending, startTransition] = useTransition();
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [isGeneratingSlide, setIsGeneratingSlide] = useState(false);
+  const [isUpdatingImageMode, setIsUpdatingImageMode] = useState(false);
+  const effectiveImageMode = chapter.slideImageMode ?? materialImageMode;
   const [title, setTitle] = useState(chapter.title);
   const [summary, setSummary] = useState(chapter.summary);
   const [estimatedMinutes, setEstimatedMinutes] = useState(
@@ -156,6 +169,15 @@ export function ChapterCard({
       })
       .catch(() => toast.error("台本の生成に失敗しました。"))
       .finally(() => setIsGeneratingScript(false));
+  }
+
+  function handleImageModeChange(value: string | null) {
+    const mode = !value || value === "inherit" ? null : (value as SlideImageMode);
+    setIsUpdatingImageMode(true);
+    updateChapterImageModeAction(materialId, chapter.id, mode)
+      .then(() => router.refresh())
+      .catch(() => toast.error("画像設定の変更に失敗しました。"))
+      .finally(() => setIsUpdatingImageMode(false));
   }
 
   function handleGenerateSlide() {
@@ -306,21 +328,50 @@ export function ChapterCard({
           <p className="text-xs text-muted-foreground">
             サブタイトル・詳細情報は台本の生成時に自動抽出されます。
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleGenerateSlide}
-            disabled={isGeneratingSlide || chapter.slideDetails.length === 0}
-          >
-            {isGeneratingSlide
-              ? "背景画像を生成中…"
-              : chapter.slideStatus === "ready"
-                ? "背景画像をAIで再生成"
-                : "背景画像をAIで生成"}
-          </Button>
-          {chapter.slideStatus === "failed" ? (
-            <p className="text-xs text-destructive">背景画像の生成に失敗しました。もう一度お試しください。</p>
-          ) : null}
+
+          <div className="w-64 space-y-1.5">
+            <Label htmlFor={`image-mode-${chapter.id}`}>この章の背景画像</Label>
+            <Select
+              value={chapter.slideImageMode ?? "inherit"}
+              onValueChange={handleImageModeChange}
+              disabled={isUpdatingImageMode}
+            >
+              <SelectTrigger id={`image-mode-${chapter.id}`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">
+                  教材の設定を使う（現在: {SLIDE_IMAGE_MODE_LABEL[materialImageMode]}）
+                </SelectItem>
+                <SelectItem value="gemini">{SLIDE_IMAGE_MODE_LABEL.gemini}</SelectItem>
+                <SelectItem value="template">{SLIDE_IMAGE_MODE_LABEL.template}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {effectiveImageMode === "gemini" ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGenerateSlide}
+                disabled={isGeneratingSlide || chapter.slideDetails.length === 0}
+              >
+                {isGeneratingSlide
+                  ? "背景画像を生成中…"
+                  : chapter.slideStatus === "ready"
+                    ? "背景画像をAIで再生成"
+                    : "背景画像をAIで生成"}
+              </Button>
+              {chapter.slideStatus === "failed" ? (
+                <p className="text-xs text-destructive">背景画像の生成に失敗しました。もう一度お試しください。</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              内蔵テンプレートの背景を使用するため、AI画像の生成は不要です。
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

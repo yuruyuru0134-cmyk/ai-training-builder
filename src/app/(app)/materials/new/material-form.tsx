@@ -75,6 +75,22 @@ export function MaterialForm() {
         </div>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="slide_image_mode">スライド背景画像</Label>
+        <Select name="slide_image_mode" defaultValue="gemini">
+          <SelectTrigger id="slide_image_mode" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="gemini">AIで生成（Gemini・章ごとに生成ボタンが必要）</SelectItem>
+            <SelectItem value="template">内蔵テンプレート（生成不要、すぐ使える）</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          章ごとに後から個別に上書きできます。
+        </p>
+      </div>
+
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">
           {state.error}

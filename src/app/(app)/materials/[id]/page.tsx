@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import {
   LEVEL_LABEL,
+  SLIDE_IMAGE_MODE_LABEL,
   STATUS_LABEL,
   TONE_LABEL,
   type MaterialLevel,
   type MaterialStatus,
   type MaterialTone,
+  type SlideImageMode,
 } from "@/lib/types";
 import { ChapterBoard } from "./chapter-board";
 import { DeleteMaterialButton } from "./delete-material-button";
@@ -27,7 +29,7 @@ export default async function MaterialDetailPage({
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, duration_minutes, level, tone, status")
+    .select("id, theme, duration_minutes, level, tone, status, slide_image_mode")
     .eq("id", id)
     .single();
 
@@ -35,23 +37,28 @@ export default async function MaterialDetailPage({
     notFound();
   }
 
+  const materialImageMode = material.slide_image_mode as SlideImageMode;
+
   const { data: chapters } = await supabase
     .from("chapters")
     .select(
-      "id, order_index, title, summary, estimated_minutes, script, char_count, status, slide_subtitle, slide_details, slide_flow_steps, slides(image_url, status)",
+      "id, order_index, title, summary, estimated_minutes, script, char_count, status, slide_subtitle, slide_details, slide_flow_steps, slide_image_mode, slides(image_url, status)",
     )
     .eq("material_id", id)
     .order("order_index");
 
   const chaptersWithSlides = (chapters ?? []).map((c) => {
     const slideRow = c.slides?.[0];
+    const effectiveImageMode = (c.slide_image_mode as SlideImageMode | null) ?? materialImageMode;
     return {
       ...c,
       slideSubtitle: c.slide_subtitle ?? "",
       slideDetails: c.slide_details ?? [],
       slideFlowSteps: c.slide_flow_steps ?? [],
-      slideImageUrl: slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null,
+      slideImageUrl:
+        effectiveImageMode === "gemini" && slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null,
       slideStatus: slideRow?.status ?? null,
+      slideImageMode: c.slide_image_mode as SlideImageMode | null,
     };
   });
 
@@ -64,6 +71,7 @@ export default async function MaterialDetailPage({
             <Badge variant="outline">{material.duration_minutes}分</Badge>
             <Badge variant="outline">{LEVEL_LABEL[material.level as MaterialLevel]}</Badge>
             <Badge variant="outline">{TONE_LABEL[material.tone as MaterialTone]}</Badge>
+            <Badge variant="outline">{SLIDE_IMAGE_MODE_LABEL[materialImageMode]}</Badge>
             <Badge variant="secondary">{STATUS_LABEL[material.status as MaterialStatus]}</Badge>
           </div>
         </div>
@@ -94,6 +102,7 @@ export default async function MaterialDetailPage({
         materialId={material.id}
         chapters={chaptersWithSlides}
         tone={material.tone as MaterialTone}
+        materialImageMode={materialImageMode}
       />
     </div>
   );

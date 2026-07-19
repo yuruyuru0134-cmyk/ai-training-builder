@@ -10,7 +10,7 @@ import { generateScript, SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import { extractSlideContent } from "@/lib/anthropic/slide-content";
 import { extractSlideFlow } from "@/lib/anthropic/slide-flow";
 import { generateSlideImage } from "@/lib/gemini/slide";
-import type { MaterialLevel, MaterialTone } from "@/lib/types";
+import type { MaterialLevel, MaterialTone, SlideImageMode } from "@/lib/types";
 import type { CreateMaterialState } from "./types";
 
 export async function createMaterial(
@@ -21,6 +21,7 @@ export async function createMaterial(
   const durationMinutes = Number(formData.get("duration_minutes"));
   const level = String(formData.get("level") ?? "beginner") as MaterialLevel;
   const tone = String(formData.get("tone") ?? "business") as MaterialTone;
+  const slideImageMode = String(formData.get("slide_image_mode") ?? "gemini") as SlideImageMode;
 
   if (!theme) {
     return { error: "テーマを入力してください。" };
@@ -45,6 +46,7 @@ export async function createMaterial(
       duration_minutes: durationMinutes,
       level,
       tone,
+      slide_image_mode: slideImageMode,
       status: "draft",
     })
     .select("id")
@@ -128,7 +130,7 @@ async function requireOwnedMaterial(materialId: string) {
   const supabase = await createClient();
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, level, tone")
+    .select("id, theme, level, tone, slide_image_mode")
     .eq("id", materialId)
     .single();
 
@@ -535,10 +537,15 @@ export async function generateSlideAction(materialId: string, chapterId: string)
 
   const { data: chapter } = await supabase
     .from("chapters")
-    .select("id, title, summary, script, slide_details")
+    .select("id, title, summary, script, slide_details, slide_image_mode")
     .eq("id", chapterId)
     .single();
   if (!chapter) throw new Error("章が見つかりません。");
+
+  const effectiveMode = chapter.slide_image_mode ?? material.slide_image_mode;
+  if (effectiveMode === "template") {
+    throw new Error("この章は内蔵テンプレート設定のため、AI画像の生成は不要です。");
+  }
 
   await generateAndSaveSlide(supabase, user.id, material, chapter);
 
@@ -554,13 +561,18 @@ export async function generateAllSlidesAction(materialId: string) {
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, title, summary, script, slide_details")
+    .select("id, title, summary, script, slide_details, slide_image_mode")
     .eq("material_id", materialId)
     .order("order_index");
 
   if (!chapters || chapters.length === 0) return;
 
-  for (const chapter of chapters) {
+  // 内蔵テンプレート設定の章はGemini呼び出し自体が不要（描画時にベクター背景へ
+  // 自動フォールバックする）ため、一括生成の対象から除く。
+  const geminiChapters = chapters.filter(
+    (c) => (c.slide_image_mode ?? material.slide_image_mode) === "gemini",
+  );
+  for (const chapter of geminiChapters) {
     await generateAndSaveSlide(supabase, user.id, material, chapter);
   }
 
@@ -569,6 +581,22 @@ export async function generateAllSlidesAction(materialId: string) {
     .from("materials")
     .update({ status: allScriptsReady ? "completed" : "slides_ready" })
     .eq("id", materialId);
+
+  revalidatePath(`/materials/${materialId}`);
+}
+
+export async function updateChapterImageModeAction(
+  materialId: string,
+  chapterId: string,
+  mode: SlideImageMode | null,
+) {
+  const { supabase } = await requireOwnedMaterial(materialId);
+
+  const { error } = await supabase
+    .from("chapters")
+    .update({ slide_image_mode: mode })
+    .eq("id", chapterId);
+  if (error) throw error;
 
   revalidatePath(`/materials/${materialId}`);
 }
