@@ -36,8 +36,8 @@ type TextTheme = {
 //   1. 左パネルは上部だけ階段状に右へ張り出し、写真パネルへ食い込む
 //      （まっすぐな縦の境界線を避け、動きのあるシルエットにする）
 //   2. 章番号を左パネル左上に大きく薄く配置するポスター的なタイポグラフィ
-//   3. 手順フローチャートは個別の枠付きカードではなく、1本の縦ラインに
-//      マーカーが並ぶ「ステップレール」表現にする
+//   3. 手順フローチャートは枠線つきボックス＋矢印という一般的な見た目を保ちつつ、
+//      各ボックス左側にアイコン/番号バッジを添えて単調な箱の羅列にしない
 // 文字は画像の上に直接重ねないため、可読性確保のぼかし・減光は不要。
 const LEFT_PANEL_W = 4.3;
 const RIGHT_X = LEFT_PANEL_W;
@@ -50,16 +50,18 @@ const CONTENT_W = LEFT_PANEL_W - PAD * 2;
 const STEP_TIER = { w: LEFT_PANEL_W + 0.7, h: 1.35 };
 
 // 右下に重ねる手順フローチャート。写真の上半分は遮らず、下側だけに収める。
+// 「箱の中に文字、矢印でつなぐ」という一般的なフローチャートの見た目を守るため、
+// 個別の枠線付きボックス（角丸矩形）を縦の矢印でつなぐ構成にする。各ボックスの
+// 左側にアイコン（またはキーワード不一致時は番号バッジ）を入れる。
 const FLOW_W = RIGHT_W - 0.8;
 const FLOW_X = RIGHT_X + (RIGHT_W - FLOW_W) / 2;
-const FLOW_ROW_H = 0.42;
-const FLOW_MARKER = 0.34;
-const FLOW_EYEBROW_H = 0.24;
-const FLOW_EYEBROW_GAP = 0.1;
+const FLOW_BOX_H = 0.42;
+const FLOW_ROW_H = 0.56;
+const FLOW_ARROW_GAP = 0.06;
 
 function flowLayout(stepCount: number) {
   const pitch = FLOW_ROW_H;
-  const totalH = stepCount > 0 ? (stepCount - 1) * pitch + FLOW_MARKER : 0;
+  const totalH = stepCount > 0 ? (stepCount - 1) * pitch + FLOW_BOX_H : 0;
   const yStart = SLIDE_H - 0.35 - totalH;
   return { pitch, yStart };
 }
@@ -155,89 +157,58 @@ function buildTextOnlySlide(
     });
   });
 
-  // 右パネル下部: 台本から抽出した手順を「ステップレール」として重ねる。
-  // 個別の枠線付きカードではなく、1枚の半透明フロストパネルの上に縦の
-  // アクセントラインを通し、マーカー（アイコン or 番号）を並べる構成にすることで、
-  // ありきたりな箱＋矢印のフローチャートより連続性のある見せ方にする。
+  // 右パネル下部: 台本から抽出した手順を、枠線つきボックス＋矢印という
+  // 一般的なフローチャートの見た目で重ねる。各ボックスの左側にアイコン
+  // （キーワード不一致時は番号バッジ）、右側に手順テキストを置く。
   const flowSteps = chapter.slide_flow_steps ?? [];
   if (flowSteps.length > 0) {
     const { pitch: flowPitch, yStart: flowYStart } = flowLayout(flowSteps.length);
-    const panelPad = 0.16;
-    const panelH = (flowSteps.length - 1) * flowPitch + FLOW_MARKER + panelPad * 2;
-    const panelY = flowYStart - panelPad;
+    const iconSize = FLOW_BOX_H - 0.14;
 
-    // パネル左端のアクセントカラーの帯（スパイン）。フロストパネルに
-    // ブランドカラーのタブが付いた「カード」としての質感を出す。
-    slide.addShape(pres.ShapeType.roundRect, {
-      x: FLOW_X - panelPad, y: panelY, w: FLOW_W + panelPad * 2, h: panelH, rectRadius: 0.08,
-      fill: { color: "FFFFFF", transparency: 12 }, line: { type: "none" },
-      shadow: { type: "outer", color: "000000", opacity: 0.2, blur: 8, offset: 2, angle: 90 },
-    });
-    slide.addShape(pres.ShapeType.rect, {
-      x: FLOW_X - panelPad, y: panelY + 0.1, w: 0.05, h: panelH - 0.2,
-      fill: { color: accent }, line: { type: "none" },
-    });
-
-    // パネル上部の見出しラベル（「PROCESS」＋短いアクセントの区切り線）。
-    // レールが唐突に始まらないよう、意図された1ブロックであることを示す。
-    const eyebrowY = panelY - FLOW_EYEBROW_GAP - FLOW_EYEBROW_H;
-    slide.addText("PROCESS", {
-      x: FLOW_X, y: eyebrowY, w: FLOW_W, h: FLOW_EYEBROW_H, fontSize: 10.5, bold: true,
-      color: accent, charSpacing: 2, valign: "bottom",
-    });
-
-    const railX = FLOW_X + FLOW_MARKER / 2;
-    const railTopY = flowYStart + FLOW_MARKER / 2;
-    const railBottomY = flowYStart + (flowSteps.length - 1) * flowPitch + FLOW_MARKER / 2;
-    if (flowSteps.length > 1) {
-      slide.addShape(pres.ShapeType.line, {
-        x: railX, y: railTopY, w: 0, h: railBottomY - railTopY,
-        line: { color: accent, width: 2.5, transparency: 15 },
-      });
-    }
-
-    const haloSize = FLOW_MARKER * 1.7;
-    const haloOffset = (haloSize - FLOW_MARKER) / 2;
     flowSteps.forEach((step, i) => {
-      const markerY = flowYStart + i * flowPitch;
+      const boxY = flowYStart + i * flowPitch;
 
-      // マーカーの背後に、薄いアクセントカラーの光彩(ハロー)を敷いて奥行きを出す。
-      slide.addShape(pres.ShapeType.ellipse, {
-        x: FLOW_X - haloOffset, y: markerY - haloOffset, w: haloSize, h: haloSize,
-        fill: { color: accent, transparency: 84 }, line: { type: "none" },
+      // ボックス同士をつなぐ矢印（下向き、三角矢じり）。
+      if (i < flowSteps.length - 1) {
+        slide.addShape(pres.ShapeType.line, {
+          x: FLOW_X + FLOW_W / 2, y: boxY + FLOW_BOX_H + FLOW_ARROW_GAP,
+          w: 0, h: flowPitch - FLOW_BOX_H - FLOW_ARROW_GAP * 2,
+          line: { color: accent, width: 2, endArrowType: "triangle" },
+        });
+      }
+
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: FLOW_X, y: boxY, w: FLOW_W, h: FLOW_BOX_H, rectRadius: 0.07,
+        fill: { color: "FFFFFF", transparency: 4 },
+        line: { color: accent, width: 1.5 },
+        shadow: { type: "outer", color: "000000", opacity: 0.2, blur: 5, offset: 1, angle: 90 },
       });
 
       // ステップ文言のキーワードに応じて、事前生成済みのアイコン（1度だけGeminiで
-      // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）をレール上のマーカーにする。
-      // キーワードに一致しない場合は番号バッジで代替し、常に円形マーカー＋左寄せ文字で揃える。
+      // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）をボックス左側に添える。
+      // キーワードに一致しない場合は番号バッジで代替し、常にボックス内で左寄せに揃える。
       const iconKey = pickFlowIcon(step);
+      const iconY = boxY + (FLOW_BOX_H - iconSize) / 2;
       if (iconKey) {
-        slide.addShape(pres.ShapeType.ellipse, {
-          x: FLOW_X, y: markerY, w: FLOW_MARKER, h: FLOW_MARKER,
-          fill: { color: "FFFFFF" }, line: { color: accent, width: 1.5 },
-          shadow: { type: "outer", color: "000000", opacity: 0.22, blur: 3, offset: 1, angle: 90 },
-        });
-        const iconPad = 0.075;
         slide.addImage({
           data: `data:image/png;base64,${FLOW_ICONS[iconKey]}`,
-          x: FLOW_X + iconPad, y: markerY + iconPad, w: FLOW_MARKER - iconPad * 2, h: FLOW_MARKER - iconPad * 2,
+          x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize,
         });
       } else {
         slide.addShape(pres.ShapeType.ellipse, {
-          x: FLOW_X, y: markerY, w: FLOW_MARKER, h: FLOW_MARKER,
-          fill: { color: accent }, line: { color: "FFFFFF", width: 1.25 },
-          shadow: { type: "outer", color: "000000", opacity: 0.22, blur: 3, offset: 1, angle: 90 },
+          x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize,
+          fill: { color: accent }, line: { type: "none" },
         });
         slide.addText(String(i + 1), {
-          x: FLOW_X, y: markerY, w: FLOW_MARKER, h: FLOW_MARKER, fontSize: 11, bold: true,
+          x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize, fontSize: 11, bold: true,
           color: "FFFFFF", align: "center", valign: "middle",
         });
       }
 
-      const textX = FLOW_X + FLOW_MARKER + 0.16;
-      const textW = FLOW_W - FLOW_MARKER - 0.16;
+      const textX = FLOW_X + 0.1 + iconSize + 0.12;
+      const textW = FLOW_W - 0.2 - iconSize - 0.12;
       slide.addText(step, {
-        x: textX, y: markerY - 0.02, w: textW, h: FLOW_MARKER + 0.04, fontSize: 12, bold: true,
+        x: textX, y: boxY, w: textW, h: FLOW_BOX_H, fontSize: 12, bold: true,
         color: "333333", align: "left", valign: "middle", fit: "shrink",
       });
     });

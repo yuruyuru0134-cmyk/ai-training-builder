@@ -4,8 +4,9 @@ import type { MaterialTone } from "@/lib/types";
 // pptx出力（src/lib/slide-templates.ts）と構造を揃えたHTML版プレビュー。
 // ただの「左ソリッドパネル＋右写真」の平凡な2分割にしないよう、
 // (1) 左パネル上部を写真パネルへ食い込ませるノッチ、(2) そこに収める大きな
-// 章番号のポスター的タイポグラフィ、(3) 手順フローチャートは枠付きカードの
-// 羅列ではなく1本のレールにマーカーが並ぶ表現、という3点で独自性を持たせている。
+// 章番号のポスター的タイポグラフィ、という2点で独自性を持たせている。
+// 手順フローチャートは「箱の中に文字、矢印でつなぐ」という一般的な見た目を
+// 保つため、枠線つきボックスを縦の矢印でつないでいる。
 // 文字を写真の上に直接重ねないため、ぼかし・減光・グラデーション処理は不要。
 export function SlidePreview({
   tone,
@@ -85,49 +86,34 @@ export function SlidePreview({
           </svg>
         )}
 
-        {/* 右パネル下部: 台本から抽出した手順を、1枚の半透明パネル上に
-            縦のレール＋マーカーで並べる。個別の枠付きカードより連続性が出る。
-            見出しラベル・マーカーの光彩・左端のアクセントスパインでpptx版と
-            同じ「デザインされたカード」の印象に揃える。 */}
+        {/* 右パネル下部: 台本から抽出した手順を、枠線つきボックス＋矢印という
+            一般的なフローチャートの見た目で重ねる（pptx版と構造を揃える）。 */}
         {steps.length > 0 ? (
-          <div className="absolute inset-x-3 bottom-2">
-            <span
-              className="mb-1 block pl-0.5 text-[8px] font-bold leading-none tracking-[0.15em]"
-              style={{ color: accent }}
-            >
-              PROCESS
-            </span>
-            <div className="relative overflow-hidden rounded-lg bg-white/85 py-2 pl-3 pr-2.5 shadow-sm">
-              <span className="absolute inset-y-[10%] left-0 w-[3px]" style={{ backgroundColor: accent }} aria-hidden />
-              <ol className="relative space-y-1.5">
-                {steps.length > 1 ? (
+          <ol className="absolute inset-x-3 bottom-2 space-y-1">
+            {steps.map((step, i) => (
+              <li key={i}>
+                <div
+                  className="flex items-center gap-1.5 rounded border bg-white/95 px-1.5 py-1 shadow-sm"
+                  style={{ borderColor: accent }}
+                >
                   <span
-                    className="absolute left-[7px] top-2 bottom-2 w-px"
-                    style={{ backgroundColor: accent, opacity: 0.4 }}
-                    aria-hidden
-                  />
+                    className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="line-clamp-1 text-[9px] font-bold leading-tight" style={{ color: "#333333" }}>
+                    {step}
+                  </span>
+                </div>
+                {i < steps.length - 1 ? (
+                  <div className="flex justify-center text-[7px] leading-none" style={{ color: accent }}>
+                    ▼
+                  </div>
                 ) : null}
-                {steps.map((step, i) => (
-                  <li key={i} className="relative flex items-center gap-1.5">
-                    <span
-                      className="absolute -left-[3px] -top-[3px] h-5 w-5 rounded-full"
-                      style={{ backgroundColor: accent, opacity: 0.16 }}
-                      aria-hidden
-                    />
-                    <span
-                      className="z-10 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white shadow"
-                      style={{ backgroundColor: accent }}
-                    >
-                      {i + 1}
-                    </span>
-                    <span className="line-clamp-1 text-[9px] font-bold leading-tight" style={{ color: "#333333" }}>
-                      {step}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
+              </li>
+            ))}
+          </ol>
         ) : null}
       </div>
     </div>
