@@ -38,7 +38,7 @@ export default async function MaterialDetailPage({
   const { data: chapters } = await supabase
     .from("chapters")
     .select(
-      "id, order_index, title, summary, estimated_minutes, script, char_count, status, slide_subtitle, slide_details, slides(image_url, status)",
+      "id, order_index, title, summary, estimated_minutes, script, char_count, status, slide_subtitle, slide_details, slide_flow_steps, slides(image_url, status)",
     )
     .eq("material_id", id)
     .order("order_index");
@@ -49,6 +49,7 @@ export default async function MaterialDetailPage({
       ...c,
       slideSubtitle: c.slide_subtitle ?? "",
       slideDetails: c.slide_details ?? [],
+      slideFlowSteps: c.slide_flow_steps ?? [],
       slideImageUrl: slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null,
       slideStatus: slideRow?.status ?? null,
     };

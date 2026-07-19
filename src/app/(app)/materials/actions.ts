@@ -8,6 +8,7 @@ import { regenerateChapter } from "@/lib/anthropic/chapter";
 import { checkConsistency, type ConsistencyIssue } from "@/lib/anthropic/consistency";
 import { generateScript, SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
 import { extractSlideContent } from "@/lib/anthropic/slide-content";
+import { extractSlideFlow } from "@/lib/anthropic/slide-flow";
 import { generateSlideImage } from "@/lib/gemini/slide";
 import type { MaterialLevel, MaterialTone } from "@/lib/types";
 import type { CreateMaterialState } from "./types";
@@ -371,6 +372,21 @@ async function generateAndSaveScript(
         .eq("id", chapter.id);
     } catch {
       // スライド用テキストが未生成のままでも、台本自体は利用できるので続行する
+    }
+
+    // スライド右側に表示する手順フローチャートも台本から抽出して保存する。
+    try {
+      const flowSteps = await extractSlideFlow({
+        chapterTitle: chapter.title,
+        chapterSummary: chapter.summary,
+        script,
+      });
+      await supabase
+        .from("chapters")
+        .update({ slide_flow_steps: flowSteps })
+        .eq("id", chapter.id);
+    } catch {
+      // フローチャートが未生成のままでも、台本自体は利用できるので続行する
     }
 
     await supabase.from("generation_logs").insert({

@@ -32,6 +32,7 @@ export function SlidePreview({
   title,
   subtitle,
   details,
+  flowSteps,
   imageUrl,
 }: {
   tone: MaterialTone;
@@ -39,6 +40,7 @@ export function SlidePreview({
   title: string;
   subtitle: string;
   details: string[];
+  flowSteps?: string[];
   imageUrl?: string | null;
 }) {
   const accent = `#${TONE_ACCENT[tone]}`;
@@ -123,32 +125,65 @@ export function SlidePreview({
           {subtitle}
         </p>
       ) : null}
-      {details.length > 0 ? (
-        <ul className="relative space-y-2">
-          {details.slice(0, 4).map((d, i) => (
-            <li
-              key={i}
-              className="flex items-start gap-1.5 rounded-md px-2 py-1 text-[11px] leading-relaxed"
-              style={
-                imageUrl
-                  ? {
-                      // ハイライトは行全体を均一に塗らず、文字が収まる手前までは
-                      // 不透明、そこから先はグラデーションで透明に消えていく
-                      // （pptx側src/lib/slide-templates.tsと同じ考え方）。
-                      backgroundImage: `linear-gradient(to right, ${hexToRgba(theme.bgColor, 0.92)} 0%, ${hexToRgba(theme.bgColor, 0.92)} 45%, ${hexToRgba(theme.bgColor, 0)} 85%)`,
-                      color: theme.h3Color,
-                    }
-                  : { color: theme.h3Color }
-              }
-            >
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
-              <span className="line-clamp-1">{d}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="relative text-[10px] text-muted-foreground">詳細情報は台本の生成時に自動抽出されます。</p>
-      )}
+      <div className="relative flex gap-3">
+        {/* 左カラム: H3詳細情報。フローチャートと並べるため右カラムより狭くする
+            （pptx側src/lib/slide-templates.tsのLEFT_COL_Wと同じ考え方）。 */}
+        <div className="w-[55%] shrink-0">
+          {details.length > 0 ? (
+            <ul className="space-y-2">
+              {details.slice(0, 4).map((d, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-1.5 rounded-md px-2 py-1 text-[11px] leading-relaxed"
+                  style={
+                    imageUrl
+                      ? {
+                          // ハイライトは行全体を均一に塗らず、文字が収まる手前までは
+                          // 不透明、そこから先はグラデーションで透明に消えていく
+                          // （pptx側src/lib/slide-templates.tsと同じ考え方）。
+                          backgroundImage: `linear-gradient(to right, ${hexToRgba(theme.bgColor, 0.92)} 0%, ${hexToRgba(theme.bgColor, 0.92)} 45%, ${hexToRgba(theme.bgColor, 0)} 85%)`,
+                          color: theme.h3Color,
+                        }
+                      : { color: theme.h3Color }
+                  }
+                >
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
+                  <span className="line-clamp-1">{d}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[10px] text-muted-foreground">詳細情報は台本の生成時に自動抽出されます。</p>
+          )}
+        </div>
+
+        {/* 右カラム: 台本から抽出した手順のフローチャート（番号つき丸 + カード）。
+            pptx出力では丸同士を矢印でもつなぐが、プレビューでは簡略化している。 */}
+        {flowSteps && flowSteps.length > 0 ? (
+          <ol className="flex-1 space-y-2">
+            {flowSteps.slice(0, 5).map((step, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-[10px] leading-relaxed">
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
+                  style={{ backgroundColor: accent }}
+                >
+                  {i + 1}
+                </span>
+                <span
+                  className="line-clamp-1 flex-1 rounded px-1.5 py-1"
+                  style={
+                    imageUrl
+                      ? { backgroundColor: hexToRgba(theme.bgColor, 0.88), color: theme.h3Color }
+                      : { color: theme.h3Color }
+                  }
+                >
+                  {step}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+      </div>
     </div>
   );
 }

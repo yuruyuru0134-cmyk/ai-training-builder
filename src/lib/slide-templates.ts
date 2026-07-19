@@ -13,6 +13,7 @@ export type SlideCtx = {
     title: string;
     slide_subtitle: string | null;
     slide_details: string[] | null;
+    slide_flow_steps?: string[] | null;
   };
   accent: string;
   // 背景スタイルを差し替えたい場合に指定する（src/lib/slide-backgrounds.ts参照）。
@@ -35,6 +36,17 @@ const BADGE_W = 0.85;
 const BADGE_X = SLIDE_W - 1.5;
 const BADGE_Y = 0.45;
 const TITLE_W = BADGE_X - 0.3 - 0.8;
+
+// H3ピル（左カラム）とフローチャート（右カラム）を並べるための列幅。
+// フローチャートは台本から抽出した手順を右側に重ねて表示するため、
+// H3ピルは全幅ではなく左側だけに収める。
+const LEFT_COL_W = 4.6;
+const FLOW_X = 5.9;
+const FLOW_W = SLIDE_W - 0.8 - FLOW_X;
+const FLOW_Y_START = 2.75;
+const FLOW_STEP_PITCH = 0.5;
+const FLOW_BOX_H = 0.36;
+const FLOW_CIRCLE_W = 0.32;
 
 // pptxgenjsは図形の塗りにグラデーションを指定できないため、文字の右端より
 // 少し先で終わる細い帯を並べて透明度を段階的に上げ、グラデーションで
@@ -135,19 +147,19 @@ function buildTextOnlySlide(
   const pillColor = backgroundImage ? theme.bgColor : accent;
   const pillBaseTransparency = backgroundImage ? 8 : 85;
   const textX = x + 0.38;
-  const textMaxW = w - 0.55;
+  const textMaxW = LEFT_COL_W - 0.55;
   details.forEach((item, i) => {
     const rowY = 2.9 + i * 0.52;
     const estTextW = Math.min(estimateTextWidthIn(item, H3_FONT_SIZE) + 0.2, textMaxW);
     const solidW = Math.max(textX + estTextW - x, 0.6);
 
     slide.addShape(pres.ShapeType.roundRect, {
-      x, y: rowY, w: Math.min(solidW, w), h: 0.42, rectRadius: 0.1,
+      x, y: rowY, w: Math.min(solidW, LEFT_COL_W), h: 0.42, rectRadius: 0.1,
       fill: { color: pillColor, transparency: pillBaseTransparency }, line: { type: "none" },
     });
 
     const fadeStartX = x + solidW;
-    const fadeW = x + w - fadeStartX;
+    const fadeW = x + LEFT_COL_W - fadeStartX;
     if (fadeW > 0.05) {
       const stepW = fadeW / H3_FADE_STEPS;
       for (let s = 0; s < H3_FADE_STEPS; s++) {
@@ -165,6 +177,41 @@ function buildTextOnlySlide(
     });
     slide.addText(item, {
       x: textX, y: rowY, w: textMaxW, h: 0.42, fontSize: H3_FONT_SIZE, color: theme.h3Color, valign: "middle", fit: "shrink",
+    });
+  });
+
+  // 右カラム: 台本から抽出した手順をフローチャート（番号つき丸 + カード + 矢印）
+  // として表示する。H3ピルと同じ配色・すりガラス処理で統一感を保つ。
+  const flowSteps = chapter.slide_flow_steps ?? [];
+  flowSteps.forEach((step, i) => {
+    const boxY = FLOW_Y_START + i * FLOW_STEP_PITCH;
+
+    if (i < flowSteps.length - 1) {
+      slide.addShape(pres.ShapeType.line, {
+        x: FLOW_X + FLOW_CIRCLE_W / 2, y: boxY + FLOW_CIRCLE_W,
+        w: 0, h: FLOW_STEP_PITCH - FLOW_CIRCLE_W,
+        line: { color: accent, width: 1.5, endArrowType: "triangle", transparency: 25 },
+      });
+    }
+
+    slide.addShape(pres.ShapeType.ellipse, {
+      x: FLOW_X, y: boxY, w: FLOW_CIRCLE_W, h: FLOW_CIRCLE_W,
+      fill: { color: accent }, line: { type: "none" },
+    });
+    slide.addText(String(i + 1), {
+      x: FLOW_X, y: boxY, w: FLOW_CIRCLE_W, h: FLOW_CIRCLE_W, fontSize: 12, bold: true, color: "FFFFFF",
+      align: "center", valign: "middle",
+    });
+
+    const cardX = FLOW_X + FLOW_CIRCLE_W + 0.12;
+    const cardW = FLOW_W - FLOW_CIRCLE_W - 0.12;
+    slide.addShape(pres.ShapeType.roundRect, {
+      x: cardX, y: boxY - 0.01, w: cardW, h: FLOW_BOX_H, rectRadius: 0.08,
+      fill: { color: pillColor, transparency: pillBaseTransparency }, line: { type: "none" },
+    });
+    slide.addText(step, {
+      x: cardX + 0.12, y: boxY - 0.01, w: cardW - 0.2, h: FLOW_BOX_H, fontSize: 12,
+      color: theme.h3Color, valign: "middle", fit: "shrink",
     });
   });
 

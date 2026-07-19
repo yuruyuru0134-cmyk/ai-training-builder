@@ -32,6 +32,7 @@ export type Chapter = {
   status: string;
   slideSubtitle: string;
   slideDetails: string[];
+  slideFlowSteps: string[];
   slideImageUrl: string | null;
   slideStatus: string | null;
 };
@@ -298,6 +299,7 @@ export function ChapterCard({
               title={chapter.title}
               subtitle={chapter.slideSubtitle}
               details={chapter.slideDetails}
+              flowSteps={chapter.slideFlowSteps}
               imageUrl={chapter.slideImageUrl}
             />
           </div>

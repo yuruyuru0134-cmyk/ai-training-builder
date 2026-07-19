@@ -44,7 +44,7 @@ export async function GET(
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, order_index, title, script, slide_subtitle, slide_details, slides(image_url, status)")
+    .select("id, order_index, title, script, slide_subtitle, slide_details, slide_flow_steps, slides(image_url, status)")
     .eq("material_id", id)
     .order("order_index");
 
