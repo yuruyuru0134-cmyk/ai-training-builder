@@ -30,26 +30,34 @@ type TextTheme = {
   footerColor: string;
 };
 
-// Canvaで生成した参考テンプレート（左：ソリッドパネルに白文字、右：写真をそのまま
-// クッキリ見せる）を踏襲したレイアウト。文字を画像の上に直接重ねないため、
-// 从来のようなぼかし・減光・グラデーションでの可読性確保が一切不要になり、
-// 写真側は加工済みの画像でもそのまま鮮明に見せられる。
+// 単純な「左：ソリッドパネル／右：写真」の垂直2分割は既存のよくあるテンプレートの
+// 模倣に留まり平凡だったため、以下の要素で独自性を持たせている（Canvaの複数デザイン
+// 候補を参考にしつつ、そのまま模倣はしていない）:
+//   1. 左パネルは上部だけ階段状に右へ張り出し、写真パネルへ食い込む
+//      （まっすぐな縦の境界線を避け、動きのあるシルエットにする）
+//   2. 章番号を左パネル左上に大きく薄く配置するポスター的なタイポグラフィ
+//   3. 手順フローチャートは個別の枠付きカードではなく、1本の縦ラインに
+//      マーカーが並ぶ「ステップレール」表現にする
+// 文字は画像の上に直接重ねないため、可読性確保のぼかし・減光は不要。
 const LEFT_PANEL_W = 4.3;
 const RIGHT_X = LEFT_PANEL_W;
 const RIGHT_W = SLIDE_W - LEFT_PANEL_W;
 const PAD = 0.5;
 const CONTENT_W = LEFT_PANEL_W - PAD * 2;
 
-// 右下に重ねる手順フローチャート。写真の上半分は遮らず、下側だけに収める
-// ことで、参考テンプレートの「写真を丸ごと見せる」印象をなるべく保つ。
+// 左パネル上部の張り出し（写真パネルへ食い込む段差）。大きな章番号の
+// 背景を兼ねるノッチなので、番号が収まる高さに合わせた1段のみにする。
+const STEP_TIER = { w: LEFT_PANEL_W + 0.7, h: 1.35 };
+
+// 右下に重ねる手順フローチャート。写真の上半分は遮らず、下側だけに収める。
 const FLOW_W = RIGHT_W - 0.8;
 const FLOW_X = RIGHT_X + (RIGHT_W - FLOW_W) / 2;
-const FLOW_BOX_H = 0.38;
-const FLOW_ARROW_GAP = 0.05;
+const FLOW_ROW_H = 0.42;
+const FLOW_MARKER = 0.32;
 
 function flowLayout(stepCount: number) {
-  const pitch = 0.5;
-  const totalH = stepCount > 0 ? (stepCount - 1) * pitch + FLOW_BOX_H : 0;
+  const pitch = FLOW_ROW_H;
+  const totalH = stepCount > 0 ? (stepCount - 1) * pitch + FLOW_MARKER : 0;
   const yStart = SLIDE_H - 0.35 - totalH;
   return { pitch, yStart };
 }
@@ -63,15 +71,10 @@ function buildTextOnlySlide(
   const slide = pres.addSlide();
   slide.background = { color: theme.bgColor };
 
-  // 左パネル: アクセントカラーのソリッド塗り。以降の文字は全て白系にして、
-  // どんな写真が右側に来ても左側の可読性には一切影響しないようにする。
-  slide.addShape(pres.ShapeType.rect, {
-    x: 0, y: 0, w: LEFT_PANEL_W, h: SLIDE_H,
-    fill: { color: accent }, line: { type: "none" },
-  });
-
   // 右パネル: 背景画像があればそのまま鮮明に敷く（文字が乗らないため、ぼかしや
   // 減光は不要）。無い場合のみベクター背景スタイルにフォールバックする。
+  // 左パネルの階段状の張り出しが写真パネルへ食い込むため、必ず右パネルを
+  // 先に描画し、左パネルを後から重ねる。
   if (backgroundImage) {
     slide.addImage({
       data: `data:${backgroundImage.mimeType};base64,${backgroundImage.data}`,
@@ -88,10 +91,30 @@ function buildTextOnlySlide(
     });
   }
 
+  // 左パネル: アクセントカラーのソリッド塗り。上部だけ階段状に右へ張り出して
+  // 写真パネルへ食い込ませることで、まっすぐな縦の境界線を避ける。
+  // 以降の文字は全て白系にして、どんな写真が右側に来ても左側の可読性には
+  // 一切影響しないようにする。
+  slide.addShape(pres.ShapeType.rect, {
+    x: 0, y: 0, w: STEP_TIER.w, h: STEP_TIER.h,
+    fill: { color: accent }, line: { type: "none" },
+  });
+  slide.addShape(pres.ShapeType.rect, {
+    x: 0, y: STEP_TIER.h, w: LEFT_PANEL_W, h: SLIDE_H - STEP_TIER.h,
+    fill: { color: accent }, line: { type: "none" },
+  });
+
   const no = String(chapter.order_index + 1).padStart(2, "0");
   const x = PAD;
 
-  slide.addText(`CHAPTER ${no}`, {
+  // 章番号を右寄せで大きく薄く配置するポスター的なタイポグラフィ要素。張り出し
+  // ノッチの右側に収め、左の「CHAPTER」ラベルや後続のタイトル文字と衝突しないようにする。
+  slide.addText(no, {
+    x: 1.9, y: -0.25, w: STEP_TIER.w - 1.9, h: 1.55, fontSize: 100, bold: true,
+    color: "FFFFFF", transparency: 87, align: "right", valign: "top",
+  });
+
+  slide.addText("CHAPTER", {
     x, y: 0.4, w: CONTENT_W, h: 0.3, fontSize: 11, bold: true, color: "FFFFFF",
     charSpacing: 2, valign: "top",
   });
@@ -130,58 +153,67 @@ function buildTextOnlySlide(
     });
   });
 
-  // 右パネル下部: 台本から抽出した手順を、枠線つきの箱＋矢印のフローチャート
-  // として重ねる。写真の上半分は遮らず、参考テンプレートの「写真を丸ごと
-  // 見せる」印象をなるべく保つ。
+  // 右パネル下部: 台本から抽出した手順を「ステップレール」として重ねる。
+  // 個別の枠線付きカードではなく、1枚の半透明フロストパネルの上に縦の
+  // アクセントラインを通し、マーカー（アイコン or 番号）を並べる構成にすることで、
+  // ありきたりな箱＋矢印のフローチャートより連続性のある見せ方にする。
   const flowSteps = chapter.slide_flow_steps ?? [];
-  const { pitch: flowPitch, yStart: flowYStart } = flowLayout(flowSteps.length);
-  flowSteps.forEach((step, i) => {
-    const boxY = flowYStart + i * flowPitch;
-
-    if (i < flowSteps.length - 1) {
-      slide.addShape(pres.ShapeType.line, {
-        x: FLOW_X + FLOW_W / 2, y: boxY + FLOW_BOX_H + FLOW_ARROW_GAP,
-        w: 0, h: flowPitch - FLOW_BOX_H - FLOW_ARROW_GAP * 2,
-        line: { color: accent, width: 2, endArrowType: "triangle" },
-      });
-    }
-
+  if (flowSteps.length > 0) {
+    const { pitch: flowPitch, yStart: flowYStart } = flowLayout(flowSteps.length);
+    const panelPad = 0.16;
+    const panelH = (flowSteps.length - 1) * flowPitch + FLOW_MARKER + panelPad * 2;
     slide.addShape(pres.ShapeType.roundRect, {
-      x: FLOW_X, y: boxY, w: FLOW_W, h: FLOW_BOX_H, rectRadius: 0.06,
-      fill: { color: "FFFFFF", transparency: 4 },
-      line: { color: accent, width: 1.25 },
-      shadow: { type: "outer", color: "000000", opacity: 0.18, blur: 4, offset: 1, angle: 90 },
+      x: FLOW_X - panelPad, y: flowYStart - panelPad, w: FLOW_W + panelPad * 2, h: panelH, rectRadius: 0.08,
+      fill: { color: "FFFFFF", transparency: 14 }, line: { type: "none" },
+      shadow: { type: "outer", color: "000000", opacity: 0.16, blur: 6, offset: 1, angle: 90 },
     });
 
-    // ステップ文言のキーワードに応じて、事前生成済みのアイコン（1度だけGeminiで
-    // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）を左側に添える。キーワードに
-    // 一致しない場合も、番号バッジで代替することで、箱ごとにアイコン有無で文字位置が
-    // 左寄せ/中央寄せに揺れる（一覧内で不揃いに見える）のを防ぎ、常に左寄せで揃える。
-    const iconKey = pickFlowIcon(step);
-    const iconSize = FLOW_BOX_H - 0.14;
-    const iconY = boxY + 0.07;
-    if (iconKey) {
-      slide.addImage({
-        data: `data:image/png;base64,${FLOW_ICONS[iconKey]}`,
-        x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize,
-      });
-    } else {
-      slide.addShape(pres.ShapeType.ellipse, {
-        x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize,
-        fill: { color: accent }, line: { type: "none" },
-      });
-      slide.addText(String(i + 1), {
-        x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize, fontSize: 11, bold: true,
-        color: "FFFFFF", align: "center", valign: "middle",
+    const railX = FLOW_X + FLOW_MARKER / 2;
+    const railTopY = flowYStart + FLOW_MARKER / 2;
+    const railBottomY = flowYStart + (flowSteps.length - 1) * flowPitch + FLOW_MARKER / 2;
+    if (flowSteps.length > 1) {
+      slide.addShape(pres.ShapeType.line, {
+        x: railX, y: railTopY, w: 0, h: railBottomY - railTopY,
+        line: { color: accent, width: 2, transparency: 15 },
       });
     }
-    const textX = FLOW_X + 0.1 + iconSize + 0.08;
-    const textW = FLOW_W - 0.2 - iconSize - 0.08;
-    slide.addText(step, {
-      x: textX, y: boxY, w: textW, h: FLOW_BOX_H, fontSize: 12, bold: true,
-      color: "333333", align: "left", valign: "middle", fit: "shrink",
+
+    flowSteps.forEach((step, i) => {
+      const markerY = flowYStart + i * flowPitch;
+
+      // ステップ文言のキーワードに応じて、事前生成済みのアイコン（1度だけGeminiで
+      // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）をレール上のマーカーにする。
+      // キーワードに一致しない場合は番号バッジで代替し、常に円形マーカー＋左寄せ文字で揃える。
+      const iconKey = pickFlowIcon(step);
+      if (iconKey) {
+        slide.addShape(pres.ShapeType.ellipse, {
+          x: FLOW_X, y: markerY, w: FLOW_MARKER, h: FLOW_MARKER,
+          fill: { color: "FFFFFF" }, line: { color: accent, width: 1.5 },
+        });
+        const iconPad = 0.07;
+        slide.addImage({
+          data: `data:image/png;base64,${FLOW_ICONS[iconKey]}`,
+          x: FLOW_X + iconPad, y: markerY + iconPad, w: FLOW_MARKER - iconPad * 2, h: FLOW_MARKER - iconPad * 2,
+        });
+      } else {
+        slide.addShape(pres.ShapeType.ellipse, {
+          x: FLOW_X, y: markerY, w: FLOW_MARKER, h: FLOW_MARKER,
+          fill: { color: accent }, line: { type: "none" },
+        });
+        slide.addText(String(i + 1), {
+          x: FLOW_X, y: markerY, w: FLOW_MARKER, h: FLOW_MARKER, fontSize: 11, bold: true,
+          color: "FFFFFF", align: "center", valign: "middle",
+        });
+      }
+
+      const textX = FLOW_X + FLOW_MARKER + 0.14;
+      const textW = FLOW_W - FLOW_MARKER - 0.14;
+      slide.addText(step, {
+        x: textX, y: markerY - 0.02, w: textW, h: FLOW_MARKER + 0.04, fontSize: 12, bold: true,
+        color: "333333", align: "left", valign: "middle", fit: "shrink",
+      });
     });
-  });
+  }
 
   return slide;
 }

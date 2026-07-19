@@ -2,10 +2,11 @@ import { TONE_ACCENT } from "@/lib/slide-theme";
 import type { MaterialTone } from "@/lib/types";
 
 // pptx出力（src/lib/slide-templates.ts）と構造を揃えたHTML版プレビュー。
-// Canvaの参考テンプレートを踏襲し、左をアクセントカラーのソリッドパネル
-// （白文字でH1/H2/H3）、右を写真パネルにする2分割レイアウト。文字を
-// 写真の上に直接重ねないため、ぼかし・減光・グラデーション処理が不要になり、
-// 写真側は常にクッキリ表示できる。
+// ただの「左ソリッドパネル＋右写真」の平凡な2分割にしないよう、
+// (1) 左パネル上部を写真パネルへ食い込ませるノッチ、(2) そこに収める大きな
+// 章番号のポスター的タイポグラフィ、(3) 手順フローチャートは枠付きカードの
+// 羅列ではなく1本のレールにマーカーが並ぶ表現、という3点で独自性を持たせている。
+// 文字を写真の上に直接重ねないため、ぼかし・減光・グラデーション処理は不要。
 export function SlidePreview({
   tone,
   chapterNo,
@@ -25,23 +26,31 @@ export function SlidePreview({
 }) {
   const accent = `#${TONE_ACCENT[tone]}`;
   const no = String(chapterNo).padStart(2, "0");
+  const steps = (flowSteps ?? []).slice(0, 5);
 
   return (
     <div className="relative flex h-full w-full overflow-hidden">
       {/* 左パネル: アクセントカラーのソリッド塗り。以降は全て白文字にすることで
           右側にどんな写真が来ても左側の可読性には一切影響しない。 */}
       <div
-        className="relative flex w-[43%] shrink-0 flex-col justify-center gap-2.5 p-4"
+        className="relative flex w-[43%] shrink-0 flex-col justify-center gap-2.5 overflow-hidden p-4"
         style={{ backgroundColor: accent }}
       >
-        <span className="text-[8px] font-bold tracking-[0.15em] text-white/90">CHAPTER {no}</span>
-        <p className="line-clamp-2 text-xl font-bold leading-snug text-white">{title}</p>
-        <span className="h-0.5 w-5 bg-white/70" />
+        {/* 右上のノッチ内に収める、大きく薄い章番号（ポスター的タイポグラフィ）。 */}
+        <span
+          className="pointer-events-none absolute -top-3 right-2 select-none text-[64px] font-black leading-none text-white/15"
+          aria-hidden
+        >
+          {no}
+        </span>
+        <span className="relative text-[8px] font-bold tracking-[0.15em] text-white/90">CHAPTER</span>
+        <p className="relative line-clamp-2 text-xl font-bold leading-snug text-white">{title}</p>
+        <span className="relative h-0.5 w-5 bg-white/70" />
         {subtitle ? (
-          <p className="line-clamp-2 text-[11px] font-semibold leading-relaxed text-white/95">{subtitle}</p>
+          <p className="relative line-clamp-2 text-[11px] font-semibold leading-relaxed text-white/95">{subtitle}</p>
         ) : null}
         {details.length > 0 ? (
-          <ul className="space-y-1.5">
+          <ul className="relative space-y-1.5">
             {details.slice(0, 4).map((d, i) => (
               <li key={i} className="flex items-start gap-1.5 text-[10px] leading-relaxed text-white/95">
                 <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-white/70" />
@@ -50,7 +59,7 @@ export function SlidePreview({
             ))}
           </ul>
         ) : (
-          <p className="text-[9px] text-white/70">詳細情報は台本の生成時に自動抽出されます。</p>
+          <p className="relative text-[9px] text-white/70">詳細情報は台本の生成時に自動抽出されます。</p>
         )}
       </div>
 
@@ -76,26 +85,33 @@ export function SlidePreview({
           </svg>
         )}
 
-        {/* 右パネル下部: 台本から抽出した手順のフローチャート（枠線つきの箱＋矢印）。
-            写真の上半分は遮らず、下側だけに重ねる。 */}
-        {flowSteps && flowSteps.length > 0 ? (
-          <ol className="absolute inset-x-3 bottom-2 space-y-1">
-            {flowSteps.slice(0, 5).map((step, i) => (
-              <li key={i}>
-                <div
-                  className="rounded border bg-white/95 px-1.5 py-1 text-center text-[9px] font-bold leading-tight shadow-sm"
-                  style={{ borderColor: accent, color: "#333333" }}
-                >
-                  <span className="line-clamp-1">{step}</span>
-                </div>
-                {i < flowSteps.slice(0, 5).length - 1 ? (
-                  <div className="flex justify-center text-[7px] leading-none" style={{ color: accent }}>
-                    ▼
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ol>
+        {/* 右パネル下部: 台本から抽出した手順を、1枚の半透明パネル上に
+            縦のレール＋マーカーで並べる。個別の枠付きカードより連続性が出る。 */}
+        {steps.length > 0 ? (
+          <div className="absolute inset-x-3 bottom-2 rounded-lg bg-white/85 px-2.5 py-2 shadow-sm">
+            <ol className="relative space-y-1.5">
+              {steps.length > 1 ? (
+                <span
+                  className="absolute left-[7px] top-2 bottom-2 w-px"
+                  style={{ backgroundColor: accent, opacity: 0.4 }}
+                  aria-hidden
+                />
+              ) : null}
+              {steps.map((step, i) => (
+                <li key={i} className="relative flex items-center gap-1.5">
+                  <span
+                    className="z-10 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7px] font-bold text-white"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="line-clamp-1 text-[9px] font-bold leading-tight" style={{ color: "#333333" }}>
+                    {step}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
         ) : null}
       </div>
     </div>
