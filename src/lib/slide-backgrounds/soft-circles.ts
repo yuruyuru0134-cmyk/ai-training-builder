@@ -10,12 +10,20 @@ import type { BackgroundStyle } from "./types";
 // 「地味」というフィードバックを受け、円の塗りは93/95%透明から大きく下げて
 // 色をしっかり効かせている。
 export const softCircles: BackgroundStyle = ({ pres, slide, accent, slideW, slideH, offsetX = 0 }) => {
+  // このスタイルは写真パネル（右側の部分領域）にも描画されるため、装飾は
+  // 常にパネル自身の矩形 [offsetX, offsetX+slideW] 内に収め、かつ下部（台本から
+  // 抽出したフローチャートが重なる帯）を避けて上半分だけに配置する。
+  // 旧・全面スライド版はスライド全体に対角バランスで円を散らしていたが、
+  // パネルが狭くなった現在は色の異なる隣接パネルへ塗りがはみ出したり、
+  // フローチャートの箱と衝突したりするため、その配置は使わない。
+  const flowSafeY = 2.55; // フローチャートは常にこれより下から始まる
+
   // 右上: 大きな円 + 同心円アウトライン（ワイヤーフレーム球体）。
   // 外側ほど薄く・線も細くすることで、均一な機械的リングではなく
-  // 奥行きのあるグラデーションのように見せる。
+  // 奥行きのあるグラデーションのように見せる。半径はflowSafeYを超えない範囲に抑える。
   const topCx = offsetX + slideW - 0.1;
   const topCy = 0.1;
-  const topR = 3.15;
+  const topR = Math.min(3.15, flowSafeY - topCy);
   slide.addShape(pres.ShapeType.ellipse, {
     x: topCx - topR, y: topCy - topR, w: topR * 2, h: topR * 2,
     fill: { color: accent, transparency: 81 }, line: { type: "none" },
@@ -33,16 +41,12 @@ export const softCircles: BackgroundStyle = ({ pres, slide, accent, slideW, slid
     });
   });
 
-  // 左下: 中くらいの円（対角のバランス）
-  slide.addShape(pres.ShapeType.ellipse, {
-    x: offsetX - 2.2, y: slideH - 2.0, w: 4.4, h: 4.4,
-    fill: { color: accent, transparency: 85 }, line: { type: "none" },
-  });
-
-  // 右下: 放射状サンバースト（①の輪状モチーフ）。光線の長さを3段階でずらし、
-  // 均一な機械的な星形ではなく、コーラルやウニのような有機的な密度を出す。
-  const burstCx = offsetX + slideW - 1.15;
-  const burstCy = slideH - 0.78;
+  // 左上: 放射状サンバースト（①の輪状モチーフ）。パネル左端から内側に収め、
+  // 光線の長さを3段階でずらすことで均一な機械的な星形ではなく
+  // コーラルやウニのような有機的な密度を出す。旧版は右下に配置していたが、
+  // フローチャートと衝突するため上半分・パネル内側へ移設した。
+  const burstCx = offsetX + 1.05;
+  const burstCy = 1.0;
   const rayCount = 36;
   const tiers = [
     { outer: 0.64, transparency: 32, width: 0.6 },

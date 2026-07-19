@@ -154,20 +154,32 @@ function buildTextOnlySlide(
     });
 
     // ステップ文言のキーワードに応じて、事前生成済みのアイコン（1度だけGeminiで
-    // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）を左側に添える。
+    // 作成し src/lib/slide-flow-icons.ts に埋め込み済み）を左側に添える。キーワードに
+    // 一致しない場合も、番号バッジで代替することで、箱ごとにアイコン有無で文字位置が
+    // 左寄せ/中央寄せに揺れる（一覧内で不揃いに見える）のを防ぎ、常に左寄せで揃える。
     const iconKey = pickFlowIcon(step);
     const iconSize = FLOW_BOX_H - 0.14;
+    const iconY = boxY + 0.07;
     if (iconKey) {
       slide.addImage({
         data: `data:image/png;base64,${FLOW_ICONS[iconKey]}`,
-        x: FLOW_X + 0.1, y: boxY + 0.07, w: iconSize, h: iconSize,
+        x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize,
+      });
+    } else {
+      slide.addShape(pres.ShapeType.ellipse, {
+        x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize,
+        fill: { color: accent }, line: { type: "none" },
+      });
+      slide.addText(String(i + 1), {
+        x: FLOW_X + 0.1, y: iconY, w: iconSize, h: iconSize, fontSize: 11, bold: true,
+        color: "FFFFFF", align: "center", valign: "middle",
       });
     }
-    const textX = iconKey ? FLOW_X + 0.1 + iconSize + 0.08 : FLOW_X + 0.1;
-    const textW = iconKey ? FLOW_W - 0.2 - iconSize - 0.08 : FLOW_W - 0.2;
+    const textX = FLOW_X + 0.1 + iconSize + 0.08;
+    const textW = FLOW_W - 0.2 - iconSize - 0.08;
     slide.addText(step, {
       x: textX, y: boxY, w: textW, h: FLOW_BOX_H, fontSize: 12, bold: true,
-      color: "333333", align: iconKey ? "left" : "center", valign: "middle", fit: "shrink",
+      color: "333333", align: "left", valign: "middle", fit: "shrink",
     });
   });
 
