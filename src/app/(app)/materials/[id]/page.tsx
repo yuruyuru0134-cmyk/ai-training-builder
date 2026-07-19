@@ -16,10 +16,13 @@ import { DeleteMaterialButton } from "./delete-material-button";
 
 export default async function MaterialDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error: errorParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: material } = await supabase
@@ -34,24 +37,22 @@ export default async function MaterialDetailPage({
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, order_index, title, summary, estimated_minutes, script, char_count, status")
+    .select(
+      "id, order_index, title, summary, estimated_minutes, script, char_count, status, slide_subtitle, slide_details, slides(image_url, status)",
+    )
     .eq("material_id", id)
     .order("order_index");
 
-  const chapterIds = (chapters ?? []).map((c) => c.id);
-  const { data: slides } = chapterIds.length
-    ? await supabase
-        .from("slides")
-        .select("chapter_id, image_url, status")
-        .in("chapter_id", chapterIds)
-    : { data: [] };
-
-  const slideByChapter = new Map((slides ?? []).map((s) => [s.chapter_id, s]));
-  const chaptersWithSlides = (chapters ?? []).map((c) => ({
-    ...c,
-    slideUrl: slideByChapter.get(c.id)?.image_url ?? null,
-    slideStatus: slideByChapter.get(c.id)?.status ?? null,
-  }));
+  const chaptersWithSlides = (chapters ?? []).map((c) => {
+    const slideRow = c.slides?.[0];
+    return {
+      ...c,
+      slideSubtitle: c.slide_subtitle ?? "",
+      slideDetails: c.slide_details ?? [],
+      slideImageUrl: slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null,
+      slideStatus: slideRow?.status ?? null,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -70,13 +71,29 @@ export default async function MaterialDetailPage({
             全体プレビュー
           </Button>
           <Button variant="outline" size="sm" render={<a href={`/api/materials/${id}/export`} />}>
-            ZIPでダウンロード
+            PowerPointでダウンロード
           </Button>
           <DeleteMaterialButton materialId={id} />
         </div>
       </div>
 
-      <ChapterBoard materialId={material.id} chapters={chaptersWithSlides} />
+      {errorParam === "outline_failed" ? (
+        <p className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          章構成の自動生成に失敗しました。各章の「AIで再生成」や「章を追加」から手動で作成するか、時間をおいて教材を作り直してください。
+        </p>
+      ) : null}
+
+      {errorParam === "content_partial" ? (
+        <p className="rounded-md border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          一部の章で台本の自動生成に失敗しました。台本が空の章がないか確認し、該当する章から個別に「台本を生成」をお試しください。
+        </p>
+      ) : null}
+
+      <ChapterBoard
+        materialId={material.id}
+        chapters={chaptersWithSlides}
+        tone={material.tone as MaterialTone}
+      />
     </div>
   );
 }

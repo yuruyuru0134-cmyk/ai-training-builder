@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-import { LEVEL_LABEL, type MaterialLevel } from "@/lib/types";
+import { SlidePreview } from "@/components/slide-preview";
+import { LEVEL_LABEL, type MaterialLevel, type MaterialTone } from "@/lib/types";
 
 export default async function MaterialPreviewPage({
   params,
@@ -15,7 +16,7 @@ export default async function MaterialPreviewPage({
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme, duration_minutes, level")
+    .select("id, theme, duration_minutes, level, tone")
     .eq("id", id)
     .single();
 
@@ -23,17 +24,13 @@ export default async function MaterialPreviewPage({
     notFound();
   }
 
+  const tone = material.tone as MaterialTone;
+
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, order_index, title, script")
+    .select("id, order_index, title, script, slide_subtitle, slide_details, slides(image_url, status)")
     .eq("material_id", id)
     .order("order_index");
-
-  const chapterIds = (chapters ?? []).map((c) => c.id);
-  const { data: slides } = chapterIds.length
-    ? await supabase.from("slides").select("chapter_id, image_url").in("chapter_id", chapterIds)
-    : { data: [] };
-  const slideByChapter = new Map((slides ?? []).map((s) => [s.chapter_id, s.image_url]));
 
   return (
     <div className="space-y-8">
@@ -50,31 +47,28 @@ export default async function MaterialPreviewPage({
             編集画面に戻る
           </Button>
           <Button size="sm" render={<a href={`/api/materials/${id}/export`} />}>
-            ZIPでダウンロード
+            PowerPointでダウンロード
           </Button>
         </div>
       </div>
 
       <div className="space-y-10">
         {(chapters ?? []).map((chapter) => {
-          const slideUrl = slideByChapter.get(chapter.id);
+          const details: string[] = chapter.slide_details ?? [];
+          const slideRow = chapter.slides?.[0];
+          const imageUrl = slideRow?.status === "ready" ? (slideRow.image_url ?? null) : null;
           return (
             <section key={chapter.id} className="space-y-3">
-              <h2 className="text-base font-semibold">
-                第{chapter.order_index + 1}章　{chapter.title}
-              </h2>
-              {slideUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={slideUrl}
-                  alt={`第${chapter.order_index + 1}章のスライド画像`}
-                  className="aspect-video w-full rounded-md border border-border object-cover"
+              <div className="aspect-video w-full overflow-hidden rounded-md border border-border">
+                <SlidePreview
+                  tone={tone}
+                  chapterNo={chapter.order_index + 1}
+                  title={chapter.title}
+                  subtitle={chapter.slide_subtitle ?? ""}
+                  details={details}
+                  imageUrl={imageUrl}
                 />
-              ) : (
-                <div className="flex aspect-video w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-xs text-muted-foreground">
-                  スライド画像未生成
-                </div>
-              )}
+              </div>
               <p className="whitespace-pre-wrap rounded-md border border-border bg-background p-4 text-sm leading-relaxed">
                 {chapter.script || "台本が未生成です。"}
               </p>

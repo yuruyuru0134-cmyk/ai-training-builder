@@ -12,14 +12,17 @@ import {
   runConsistencyCheckAction,
 } from "../actions";
 import type { ConsistencyIssue } from "@/lib/anthropic/consistency";
+import type { MaterialTone } from "@/lib/types";
 import { ChapterCard, type Chapter } from "./chapter-card";
 
 export function ChapterBoard({
   materialId,
   chapters,
+  tone,
 }: {
   materialId: string;
   chapters: Chapter[];
+  tone: MaterialTone;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -157,6 +160,7 @@ export function ChapterBoard({
             key={chapter.id}
             materialId={materialId}
             chapter={chapter}
+            tone={tone}
             issue={issueMap.get(chapter.order_index) ?? null}
             onIssueResolved={handleIssueResolved}
             isFirst={i === 0}

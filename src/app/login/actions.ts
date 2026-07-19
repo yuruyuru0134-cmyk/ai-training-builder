@@ -9,6 +9,13 @@ function getBaseUrl() {
   return "http://localhost:3000";
 }
 
+// オープンリダイレクト防止: 自サイト内の絶対パスのみ許可する。
+// "//evil.com" のようなプロトコル相対URLや外部URLは弾く。
+function safeNext(next: string): string {
+  if (next.startsWith("/") && !next.startsWith("//")) return next;
+  return "/dashboard";
+}
+
 export async function login(
   _prevState: AuthFormState,
   formData: FormData,
@@ -27,7 +34,7 @@ export async function login(
     };
   }
 
-  redirect(next || "/dashboard");
+  redirect(safeNext(next));
 }
 
 export async function signup(

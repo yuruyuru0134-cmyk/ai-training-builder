@@ -7,6 +7,7 @@ import { generateOutline } from "@/lib/anthropic/outline";
 import { regenerateChapter } from "@/lib/anthropic/chapter";
 import { checkConsistency, type ConsistencyIssue } from "@/lib/anthropic/consistency";
 import { generateScript, SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
+import { extractSlideContent } from "@/lib/anthropic/slide-content";
 import { generateSlideImage } from "@/lib/gemini/slide";
 import type { MaterialLevel, MaterialTone } from "@/lib/types";
 import type { CreateMaterialState } from "./types";
@@ -52,6 +53,8 @@ export async function createMaterial(
     return { error: "教材の作成に失敗しました。時間をおいて再度お試しください。" };
   }
 
+  let insertedChapters: { id: string; title: string; summary: string; estimated_minutes: number | null }[] = [];
+
   try {
     const chapters = await generateOutline({ theme, durationMinutes, level });
 
@@ -59,18 +62,22 @@ export async function createMaterial(
       throw new Error("章構成の生成結果が空でした。");
     }
 
-    const { error: chaptersError } = await supabase.from("chapters").insert(
-      chapters.map((c, i) => ({
-        material_id: material.id,
-        order_index: i,
-        title: c.title,
-        summary: c.summary,
-        estimated_minutes: c.estimated_minutes,
-        status: "draft",
-      })),
-    );
+    const { data: chapterRows, error: chaptersError } = await supabase
+      .from("chapters")
+      .insert(
+        chapters.map((c, i) => ({
+          material_id: material.id,
+          order_index: i,
+          title: c.title,
+          summary: c.summary,
+          estimated_minutes: c.estimated_minutes,
+          status: "draft",
+        })),
+      )
+      .select("id, title, summary, estimated_minutes");
 
     if (chaptersError) throw chaptersError;
+    insertedChapters = chapterRows ?? [];
 
     await supabase
       .from("materials")
@@ -92,7 +99,28 @@ export async function createMaterial(
     redirect(`/materials/${material.id}?error=outline_failed`);
   }
 
-  redirect(`/materials/${material.id}`);
+  // 章構成だけではタイトルの羅列にしかならず教材として使えないため、
+  // 台本（とスライド表示用のH2/H3テキスト）も作成時に自動生成する。
+  // 章同士は並列に走らせることで全体の待ち時間を抑える。
+  const materialContext = { id: material.id, theme, level, tone };
+  const contentResults = await Promise.all(
+    insertedChapters.map(async (chapter) => {
+      try {
+        await generateAndSaveScript(supabase, materialContext, chapter);
+        return true;
+      } catch {
+        return false;
+      }
+    }),
+  );
+  const allContentOk = contentResults.every(Boolean);
+
+  await supabase
+    .from("materials")
+    .update({ status: allContentOk ? "completed" : "scripts_ready" })
+    .eq("id", material.id);
+
+  redirect(`/materials/${material.id}${allContentOk ? "" : "?error=content_partial"}`);
 }
 
 async function requireOwnedMaterial(materialId: string) {
@@ -312,7 +340,7 @@ async function generateAndSaveScript(
   supabase: Awaited<ReturnType<typeof createClient>>,
   material: { id: string; theme: string; level: MaterialLevel; tone: MaterialTone },
   chapter: { id: string; title: string; summary: string; estimated_minutes: number | null },
-) {
+): Promise<string> {
   try {
     const { script, truncated } = await generateScript({
       theme: material.theme,
@@ -329,6 +357,22 @@ async function generateAndSaveScript(
       .eq("id", chapter.id);
     if (error) throw error;
 
+    // スライド表示用のサブタイトル・詳細情報も台本から抽出して保存する。
+    // 抽出に失敗しても台本自体の保存は既に成功しているため、ここは失敗を握りつぶす。
+    try {
+      const content = await extractSlideContent({
+        chapterTitle: chapter.title,
+        chapterSummary: chapter.summary,
+        script,
+      });
+      await supabase
+        .from("chapters")
+        .update({ slide_subtitle: content.subtitle, slide_details: content.details })
+        .eq("id", chapter.id);
+    } catch {
+      // スライド用テキストが未生成のままでも、台本自体は利用できるので続行する
+    }
+
     await supabase.from("generation_logs").insert({
       material_id: material.id,
       type: "script",
@@ -337,6 +381,8 @@ async function generateAndSaveScript(
         ? `${SCRIPT_MAX_CHARS}字を超えたため末尾を切り詰めました`
         : null,
     });
+
+    return script;
   } catch (err) {
     await supabase.from("generation_logs").insert({
       material_id: material.id,
@@ -388,7 +434,7 @@ async function generateAndSaveSlide(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   material: { id: string; theme: string; tone: MaterialTone },
-  chapter: { id: string; title: string; summary: string },
+  chapter: { id: string; title: string; summary: string; script?: string; slide_details?: string[] | null },
 ) {
   const { data: existingSlide } = await supabase
     .from("slides")
@@ -405,10 +451,16 @@ async function generateAndSaveSlide(
         .insert({ chapter_id: chapter.id, status: "generating" });
     }
 
+    // 台本生成時に抽出済みのH3詳細（chapters.slide_details）をそのまま
+    // 画像生成の要点としても使う。テキスト表示と画像の内容を一致させるため、
+    // 別途要点を再抽出することはしない。
+    const points = chapter.slide_details ?? [];
+
     const { data, mimeType, attempts } = await generateSlideImage({
       theme: material.theme,
       chapterTitle: chapter.title,
       chapterSummary: chapter.summary,
+      points,
       tone: material.tone,
     });
 
@@ -467,7 +519,7 @@ export async function generateSlideAction(materialId: string, chapterId: string)
 
   const { data: chapter } = await supabase
     .from("chapters")
-    .select("id, title, summary")
+    .select("id, title, summary, script, slide_details")
     .eq("id", chapterId)
     .single();
   if (!chapter) throw new Error("章が見つかりません。");
@@ -486,7 +538,7 @@ export async function generateAllSlidesAction(materialId: string) {
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, title, summary, script")
+    .select("id, title, summary, script, slide_details")
     .eq("material_id", materialId)
     .order("order_index");
 

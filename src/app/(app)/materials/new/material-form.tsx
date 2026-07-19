@@ -82,7 +82,9 @@ export function MaterialForm() {
       ) : null}
 
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "章構成を生成中…（数十秒かかります）" : "章構成を生成する"}
+        {pending
+          ? "章構成・台本・スライドを生成中…（数分かかります）"
+          : "教材を作成する"}
       </Button>
     </form>
   );

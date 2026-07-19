@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SCRIPT_MAX_CHARS } from "@/lib/anthropic/script";
+import { SlidePreview } from "@/components/slide-preview";
+import type { MaterialTone } from "@/lib/types";
 import {
   deleteChapterAction,
   generateScriptAction,
@@ -28,13 +30,16 @@ export type Chapter = {
   script: string;
   char_count: number;
   status: string;
-  slideUrl: string | null;
+  slideSubtitle: string;
+  slideDetails: string[];
+  slideImageUrl: string | null;
   slideStatus: string | null;
 };
 
 export function ChapterCard({
   materialId,
   chapter,
+  tone,
   issue,
   onIssueResolved,
   isFirst,
@@ -42,6 +47,7 @@ export function ChapterCard({
 }: {
   materialId: string;
   chapter: Chapter;
+  tone: MaterialTone;
   issue: string | null;
   onIssueResolved: (orderIndex: number) => void;
   isFirst: boolean;
@@ -155,10 +161,10 @@ export function ChapterCard({
     setIsGeneratingSlide(true);
     generateSlideAction(materialId, chapter.id)
       .then(() => {
-        toast.success("スライド画像を生成しました。");
+        toast.success("スライド背景画像を生成しました。");
         router.refresh();
       })
-      .catch(() => toast.error("スライド画像の生成に失敗しました。"))
+      .catch(() => toast.error("スライド背景画像の生成に失敗しました。"))
       .finally(() => setIsGeneratingSlide(false));
   }
 
@@ -284,31 +290,35 @@ export function ChapterCard({
         <Separator />
 
         <div className="space-y-1.5">
-          <Label>スライド画像</Label>
-          {chapter.slideUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={chapter.slideUrl}
-              alt={`第${chapter.order_index + 1}章のスライド画像`}
-              className="aspect-video w-full rounded-md border border-border object-cover"
+          <Label>スライド（PowerPoint出力のプレビュー）</Label>
+          <div className="aspect-video w-full overflow-hidden rounded-md border border-border">
+            <SlidePreview
+              tone={tone}
+              chapterNo={chapter.order_index + 1}
+              title={chapter.title}
+              subtitle={chapter.slideSubtitle}
+              details={chapter.slideDetails}
+              imageUrl={chapter.slideImageUrl}
             />
-          ) : (
-            <div className="flex aspect-video w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-xs text-muted-foreground">
-              まだスライド画像がありません
-            </div>
-          )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            サブタイトル・詳細情報は台本の生成時に自動抽出されます。
+          </p>
           <Button
             size="sm"
             variant="outline"
             onClick={handleGenerateSlide}
-            disabled={isGeneratingSlide}
+            disabled={isGeneratingSlide || chapter.slideDetails.length === 0}
           >
             {isGeneratingSlide
-              ? "画像を生成中…"
-              : chapter.slideUrl
-                ? "スライド画像をAIで再生成"
-                : "スライド画像を生成"}
+              ? "背景画像を生成中…"
+              : chapter.slideStatus === "ready"
+                ? "背景画像をAIで再生成"
+                : "背景画像をAIで生成"}
           </Button>
+          {chapter.slideStatus === "failed" ? (
+            <p className="text-xs text-destructive">背景画像の生成に失敗しました。もう一度お試しください。</p>
+          ) : null}
         </div>
       </CardContent>
     </Card>

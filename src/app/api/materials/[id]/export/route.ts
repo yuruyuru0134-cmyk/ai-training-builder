@@ -1,9 +1,28 @@
-import JSZip from "jszip";
+import PptxGenJS from "pptxgenjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { MaterialTone } from "@/lib/types";
+import { TONE_ACCENT } from "@/lib/slide-theme";
+import { buildBusinessSlide, buildCasualSlide, buildMinimalSlide } from "@/lib/slide-templates";
 
 function sanitizeFilename(name: string) {
   return name.replace(/[\\/:*?"<>|]/g, "").trim() || "untitled";
+}
+
+async function fetchBackgroundImage(
+  imageUrl: string | null,
+): Promise<{ data: string; mimeType: string } | null> {
+  if (!imageUrl) return null;
+  try {
+    const res = await fetch(imageUrl);
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const mimeType = res.headers.get("content-type") || "image/png";
+    return { data: buffer.toString("base64"), mimeType };
+  } catch {
+    // 背景画像の取得に失敗しても、pptx全体の生成は継続する（フォールバック背景を使う）
+    return null;
+  }
 }
 
 export async function GET(
@@ -15,7 +34,7 @@ export async function GET(
 
   const { data: material } = await supabase
     .from("materials")
-    .select("id, theme")
+    .select("id, theme, tone")
     .eq("id", id)
     .single();
 
@@ -25,49 +44,41 @@ export async function GET(
 
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("id, order_index, title, script")
+    .select("id, order_index, title, script, slide_subtitle, slide_details, slides(image_url, status)")
     .eq("material_id", id)
     .order("order_index");
 
-  const chapterIds = (chapters ?? []).map((c) => c.id);
-  const { data: slides } = chapterIds.length
-    ? await supabase.from("slides").select("chapter_id, image_url").in("chapter_id", chapterIds)
-    : { data: [] };
-  const slideByChapter = new Map((slides ?? []).map((s) => [s.chapter_id, s.image_url]));
+  const tone = material.tone as MaterialTone;
+  const accent = TONE_ACCENT[tone];
+  // 教材のトーン設定に応じて、構造から異なるテンプレートを使い分ける。
+  const buildSlide =
+    tone === "minimal" ? buildMinimalSlide : tone === "casual" ? buildCasualSlide : buildBusinessSlide;
 
-  const zip = new JSZip();
-  const scriptsFolder = zip.folder("scripts");
-  const slidesFolder = zip.folder("slides");
+  const pres = new PptxGenJS();
+  pres.layout = "LAYOUT_16x9";
 
   for (const chapter of chapters ?? []) {
-    const n = String(chapter.order_index + 1).padStart(2, "0");
-    const safeTitle = sanitizeFilename(chapter.title);
+    const slideRow = chapter.slides?.[0];
+    const backgroundImage =
+      slideRow?.status === "ready" ? await fetchBackgroundImage(slideRow.image_url) : null;
 
-    scriptsFolder?.file(`${n}_${safeTitle}.txt`, chapter.script || "（台本未生成）");
-
-    const imageUrl = slideByChapter.get(chapter.id);
-    if (imageUrl) {
-      try {
-        const res = await fetch(imageUrl);
-        if (res.ok) {
-          const buffer = await res.arrayBuffer();
-          const extension = imageUrl.includes(".png") ? "png" : "jpg";
-          slidesFolder?.file(`${n}_${safeTitle}.${extension}`, buffer);
-        }
-      } catch {
-        // 画像の取得に失敗した場合はスキップし、台本のエクスポートは継続する
-      }
-    }
+    const slide = buildSlide({
+      pres,
+      materialTheme: material.theme,
+      chapter,
+      accent,
+      backgroundImage,
+    });
+    slide.addNotes(chapter.script || "（台本未生成）");
   }
 
-  const content = await zip.generateAsync({ type: "arraybuffer" });
-  const blob = new Blob([content], { type: "application/zip" });
-  const filename = `${sanitizeFilename(material.theme)}.zip`;
+  const buffer = (await pres.write({ outputType: "nodebuffer" })) as Buffer;
+  const filename = `${sanitizeFilename(material.theme)}.pptx`;
 
-  return new NextResponse(blob, {
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="material.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "Content-Disposition": `attachment; filename="material.pptx"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     },
   });
 }
